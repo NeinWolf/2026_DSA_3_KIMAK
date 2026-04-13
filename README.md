@@ -96,7 +96,7 @@ The system is designed for employees working in teams on projects and tasks. It 
 - Business logic (time tracking, validation)
 - Security (authentication & authorization)
 
-### Backend – Person 3 (Spring Boot - Advanced)
+### Backend – Kaja Szańska (Spring Boot - Advanced)
 - Reporting module (aggregations, summaries)
 - Performance optimization
 - Integration with database
@@ -113,7 +113,7 @@ The system is designed for employees working in teams on projects and tasks. It 
 - Forms (time entry, task management)
 - Data visualization (charts, reports)
 
-### Testing & DevOps – Person 6
+### Testing & DevOps – Natan Brzezinka
 - Unit tests (backend & frontend)
 - Integration tests
 - End-to-end testing
