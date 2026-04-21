@@ -83,7 +83,7 @@ The system is designed for employees working in teams on projects and tasks. It 
 
 ## Project Role Assignment
 
-### Database – Person 1
+### Database – Filip Swornowski
 - Database schema design (PostgreSQL)
 - ER diagrams and normalization
 - Data integrity constraints
@@ -102,12 +102,12 @@ The system is designed for employees working in teams on projects and tasks. It 
 - Integration with database
 - Exception handling & logging
 
-### Frontend – Person 4 (React + TSX - UI/UX)
+### Frontend – Oliwier Zasadni (React + TSX - UI/UX)
 - UI design (responsive & accessible)
 - Layouts (dashboard, tables, forms)
 - User experience flows
 
-### Frontend – Person 5 (React + TSX - Logic)
+### Frontend – Tymoteusz Kalinowski (React + TSX - Logic)
 - API integration
 - State management (e.g. Redux / Context)
 - Forms (time entry, task management)
