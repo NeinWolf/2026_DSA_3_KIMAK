@@ -4,6 +4,10 @@
 
 The system is designed for employees working in teams on projects and tasks. It enables efficient tracking, management, and reporting of working time.
 
+### UI Preview
+
+https://v0-time-tracking-layout.vercel.app
+
 ### Core functionalities:
 
 **Employees can:**
