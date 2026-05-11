@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/Report.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/Report.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/TimeEntry.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/TimeEntry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/repository/TimeEntryRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/repository/TimeEntryRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/resources/application.properties" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3CxHe9z1a4z3ewDV1yCSoPtQe6q" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/home/neinwolf/git/2026_DSA_3_KIMAK",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Project",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "preferences.keymap",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="2026_DSA_3_KIMAK" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="2026_DSA_3_KIMAK" />
+      <option name="filePath" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="" />
+      <created>1777320393839</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1777320393839</updated>
+      <workItem from="1777320395068" duration="47000" />
+      <workItem from="1777320558044" duration="523000" />
+      <workItem from="1778502375558" duration="160000" />
+      <workItem from="1778502540776" duration="350000" />
+      <workItem from="1778502901419" duration="395000" />
+      <workItem from="1778503322835" duration="1119000" />
+      <workItem from="1778504461703" duration="3714000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

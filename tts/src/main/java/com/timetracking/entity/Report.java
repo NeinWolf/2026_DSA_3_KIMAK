@@ -32,10 +32,10 @@ public class Report {
     @Column(nullable = false, length = 20)
     private ReportType type;
 
-    @Column(name = "date_range_start")
+    @Column(name = "start_date")
     private LocalDate dateRangeStart;
 
-    @Column(name = "date_range_end")
+    @Column(name = "end_date")
     private LocalDate dateRangeEnd;
 
     @NotNull

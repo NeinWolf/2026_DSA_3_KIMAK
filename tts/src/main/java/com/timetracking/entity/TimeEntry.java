@@ -5,13 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
-/**
- * Records a single block of work performed by a user on a specific task.
- * {@code duration} stores computed minutes and enables fast aggregate queries.
- */
 @Getter
 @Setter
 @Entity
@@ -33,19 +28,14 @@ public class TimeEntry {
     private Task task;
 
     @NotNull
-    @Column(nullable = false)
-    private LocalDate date;
-
-    @NotNull
     @Column(name = "start_time", nullable = false)
-    private LocalTime startTime;
+    private LocalDateTime startTime;
 
     @Column(name = "end_time")
-    private LocalTime endTime;
+    private LocalDateTime endTime;
 
-    /** Duration in minutes; derived from start/end time but stored for fast querying. */
-    @Column
-    private Integer duration;
+    @Column(name = "is_active")
+    private Boolean isActive = false;
 
     @Column(columnDefinition = "TEXT")
     private String description;
