@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/idea.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="dokończone endpointy dla users i tasków">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -70,23 +65,23 @@
 }]]></component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.00010053601285" />
-      <entry key="MS500" value="1.1586588607524773" />
-      <entry key="S2" value="1.6314572578098487" />
-      <entry key="S5" value="1.9074598718185451" />
-      <entry key="S10" value="2.385533894716229" />
-      <entry key="S30" value="3.5889697715664197" />
-      <entry key="S60" value="4.191234866090836" />
-      <entry key="M2" value="4.669516122672256" />
-      <entry key="M5" value="5.757727716084028" />
-      <entry key="M10" value="6.9973476915075254" />
-      <entry key="M15" value="7.926862201238587" />
-      <entry key="M30" value="9.881746547623573" />
-      <entry key="H1" value="11.78985812725163" />
-      <entry key="H2" value="13.180943357344278" />
-      <entry key="H4" value="14.028748656427327" />
-      <entry key="D1" value="14.828747519349873" />
-      <entry key="W1" value="14.975294415872789" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.000000000000632" />
+      <entry key="S2" value="1.0020352632432437" />
+      <entry key="S5" value="1.2273310140281504" />
+      <entry key="S10" value="2.402999238137358" />
+      <entry key="S30" value="8.078144821756174" />
+      <entry key="S60" value="13.060578957461367" />
+      <entry key="M2" value="17.21452948450454" />
+      <entry key="M5" value="21.448137844779758" />
+      <entry key="M10" value="24.637037100379878" />
+      <entry key="M15" value="26.582214958296916" />
+      <entry key="M30" value="29.978162195924334" />
+      <entry key="H1" value="32.997429830251896" />
+      <entry key="H2" value="35.16132423872566" />
+      <entry key="H4" value="36.481259217445675" />
+      <entry key="D1" value="37.73155580807362" />
+      <entry key="W1" value="37.96125403653512" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -108,23 +103,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9727520587994626" />
-      <entry key="MS500" value="1.1520330926210884" />
-      <entry key="S2" value="1.628947330869845" />
-      <entry key="S5" value="1.9038904192845625" />
-      <entry key="S10" value="2.377815605753104" />
-      <entry key="S30" value="3.5810228071628587" />
-      <entry key="S60" value="4.1859237562142235" />
-      <entry key="M2" value="4.666393525190567" />
-      <entry key="M5" value="5.756200971874399" />
-      <entry key="M10" value="6.9964620293880975" />
-      <entry key="M15" value="7.926227305968833" />
-      <entry key="M30" value="9.881396375123641" />
-      <entry key="H1" value="11.789670977000815" />
-      <entry key="H2" value="13.18084593628124" />
-      <entry key="H4" value="14.028698845000767" />
-      <entry key="D1" value="14.828739050519987" />
-      <entry key="W1" value="14.97529320175209" />
+      <entry key="MS100" value="0.9726549474122855" />
+      <entry key="MS500" value="0.9944701686738429" />
+      <entry key="S2" value="1.0006468089921394" />
+      <entry key="S5" value="1.2266345645425332" />
+      <entry key="S10" value="2.402281684281301" />
+      <entry key="S30" value="8.077332211521545" />
+      <entry key="S60" value="13.059927068542308" />
+      <entry key="M2" value="17.214060641924796" />
+      <entry key="M5" value="21.447658734505456" />
+      <entry key="M10" value="24.63655262308958" />
+      <entry key="M15" value="26.581782655038147" />
+      <entry key="M30" value="29.977861606130087" />
+      <entry key="H1" value="32.99724877384716" />
+      <entry key="H2" value="35.16122410745527" />
+      <entry key="H4" value="36.48120643789088" />
+      <entry key="D1" value="37.73154660332387" />
+      <entry key="W1" value="37.96125271113141" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -266,8 +261,17 @@
       <workItem from="1778503322835" duration="1119000" />
       <workItem from="1778504461703" duration="3714000" />
       <workItem from="1779655051504" duration="488000" />
-      <workItem from="1779656268910" duration="3705000" />
+      <workItem from="1779656268910" duration="4347000" />
     </task>
+    <task id="LOCAL-00001" summary="dokończone endpointy dla users i tasków">
+      <option name="closed" value="true" />
+      <created>1779660236879</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1779660236879</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -283,5 +287,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="dokończone endpointy dla users i tasków" />
+    <option name="LAST_COMMIT_MESSAGE" value="dokończone endpointy dla users i tasków" />
   </component>
 </project>
