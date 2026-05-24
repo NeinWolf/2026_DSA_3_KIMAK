@@ -5,48 +5,215 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/Report.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/Report.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/TimeEntry.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/entity/TimeEntry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/repository/TimeEntryRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/repository/TimeEntryRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tts/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/resources/application.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/idea.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$/tts">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="tts" type="f1a62948:ProjectNode" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "kajaszanska"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/NeinWolf/2026_DSA_3_KIMAK.git",
+    "accountId": "d0afc615-bb10-4936-a0a0-48e72a278103"
+  }
+}]]></component>
+  <component name="HttpClientOnboardingState"><![CDATA[{
+  "isOnboardingCommentShown": true
+}]]></component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
+}]]></component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.00010053601285" />
+      <entry key="MS500" value="1.1586588607524773" />
+      <entry key="S2" value="1.6314572578098487" />
+      <entry key="S5" value="1.9074598718185451" />
+      <entry key="S10" value="2.385533894716229" />
+      <entry key="S30" value="3.5889697715664197" />
+      <entry key="S60" value="4.191234866090836" />
+      <entry key="M2" value="4.669516122672256" />
+      <entry key="M5" value="5.757727716084028" />
+      <entry key="M10" value="6.9973476915075254" />
+      <entry key="M15" value="7.926862201238587" />
+      <entry key="M30" value="9.881746547623573" />
+      <entry key="H1" value="11.78985812725163" />
+      <entry key="H2" value="13.180943357344278" />
+      <entry key="H4" value="14.028748656427327" />
+      <entry key="D1" value="14.828747519349873" />
+      <entry key="W1" value="14.975294415872789" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9727520587994626" />
+      <entry key="MS500" value="1.1520330926210884" />
+      <entry key="S2" value="1.628947330869845" />
+      <entry key="S5" value="1.9038904192845625" />
+      <entry key="S10" value="2.377815605753104" />
+      <entry key="S30" value="3.5810228071628587" />
+      <entry key="S60" value="4.1859237562142235" />
+      <entry key="M2" value="4.666393525190567" />
+      <entry key="M5" value="5.756200971874399" />
+      <entry key="M10" value="6.9964620293880975" />
+      <entry key="M15" value="7.926227305968833" />
+      <entry key="M30" value="9.881396375123641" />
+      <entry key="H1" value="11.789670977000815" />
+      <entry key="H2" value="13.18084593628124" />
+      <entry key="H4" value="14.028698845000767" />
+      <entry key="D1" value="14.828739050519987" />
+      <entry key="W1" value="14.97529320175209" />
+    </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 1,
   &quot;fromUser&quot;: false
 }</component>
   <component name="ProjectId" id="3CxHe9z1a4z3ewDV1yCSoPtQe6q" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Gradle.Build tts.executor": "Run",
+    "HTTP Request.requests | Create task.executor": "Run",
+    "HTTP Request.requests | Create user.executor": "Run",
+    "HTTP Request.requests | Delete task.executor": "Run",
+    "HTTP Request.requests | Delete user.executor": "Run",
+    "HTTP Request.requests | Get all tasks.executor": "Run",
+    "HTTP Request.requests | Get all users.executor": "Run",
+    "HTTP Request.requests | Update task.executor": "Run",
+    "HTTP Request.requests | Update user.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RequestMappingsPanelOrder0": "0",
+    "RequestMappingsPanelOrder1": "1",
+    "RequestMappingsPanelWidth0": "75",
+    "RequestMappingsPanelWidth1": "75",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Spring Boot.TimeTrackingApplication.executor": "Run",
     "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/home/neinwolf/git/2026_DSA_3_KIMAK",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "project.structure.last.edited": "Project",
     "project.structure.proportion": "0.15",
     "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "preferences.keymap",
+    "settings.editor.selected.configurable": "configurable.group.language",
+    "to.speed.mode.migration.done": "true",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager">
+  <component name="RunDashboard">
+    <option name="configurationStatuses">
+      <map>
+        <entry key="HttpClient.HttpRequestRunConfigurationType">
+          <value>
+            <map>
+              <entry key="requests | Create task" value="STOPPED" />
+              <entry key="requests | Delete task" value="STOPPED" />
+              <entry key="requests | Delete user" value="STOPPED" />
+              <entry key="requests | Get all tasks" value="STOPPED" />
+              <entry key="requests | Update task" value="STOPPED" />
+            </map>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="RunManager" selected="Spring Boot.TimeTrackingApplication">
+    <configuration name="requests | Create task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Create task" index="6" runType="Run single request">
+      <method v="2" />
+    </configuration>
+    <configuration name="requests | Delete task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Delete task" index="8" runType="Run single request">
+      <method v="2" />
+    </configuration>
+    <configuration name="requests | Delete user" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Delete user" index="4" runType="Run single request">
+      <method v="2" />
+    </configuration>
+    <configuration name="requests | Get all tasks" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Get all tasks" index="5" runType="Run single request">
+      <method v="2" />
+    </configuration>
+    <configuration name="requests | Update task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Update task" index="7" runType="Run single request">
+      <method v="2" />
+    </configuration>
     <configuration default="true" type="JetRunConfigurationType">
       <module name="2026_DSA_3_KIMAK" />
       <method v="2">
@@ -58,6 +225,31 @@
       <option name="filePath" />
       <method v="2" />
     </configuration>
+    <configuration name="TimeTrackingApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <option name="FRAME_DEACTIVATION_UPDATE_POLICY" value="UpdateClassesAndResources" />
+      <module name="tts.main" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.timetracking.TimeTrackingApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="HTTP Request.requests | Delete task" />
+        <item itemvalue="HTTP Request.requests | Update task" />
+        <item itemvalue="HTTP Request.requests | Create task" />
+        <item itemvalue="HTTP Request.requests | Get all tasks" />
+        <item itemvalue="HTTP Request.requests | Delete user" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-37e91769500f-intellij.indexing.shared.core-IU-261.24374.151" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-IU-261.24374.151" />
+      </set>
+    </attachedChunks>
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -73,10 +265,23 @@
       <workItem from="1778502901419" duration="395000" />
       <workItem from="1778503322835" duration="1119000" />
       <workItem from="1778504461703" duration="3714000" />
+      <workItem from="1779655051504" duration="488000" />
+      <workItem from="1779656268910" duration="3705000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>
