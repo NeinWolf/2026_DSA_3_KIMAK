@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   FolderKanban, 
@@ -41,15 +41,17 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
-import type { ProjectDTO, ApiError } from '@/lib/api';
+import { useTasks } from '@/hooks/use-tasks';
+import { useUsers } from '@/hooks/use-users';
+import type { ProjectDTO, TaskDTO, ApiError } from '@/lib/api';
 
 type ViewType = 'dashboard' | 'my-time' | 'projects' | 'reports' | 'team';
 type ModalType = 'none' | 'add-time-entry' | 'edit-time-entry' | 'add-project' | 'edit-project' | 'add-task' | 'assign-employee' | 'add-user' | 'generate-report' | 'view-report' | 'delete-confirm';
-type UserRole = 'admin' | 'employee';
+export type UserRole = 'admin' | 'employee';
 type SortField = 'date' | 'duration' | 'project' | 'task';
 type SortDirection = 'asc' | 'desc';
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
@@ -105,21 +107,40 @@ interface Report {
   generatedBy: string;
 }
 
-// Current user (simulated login - will be replaced by auth)
-const currentUser: User = {
-  id: 1,
-  name: 'Jan Kowalski',
-  email: 'jan.kowalski@company.pl',
-  initials: 'JK',
-  role: 'admin',
-  team: 'Frontend'
-};
+// Current user is now passed as a prop
 
 // Users data - will be loaded from API when endpoint is available
 const initialUsers: User[] = [];
 
-// Time entries - will be loaded from API when endpoint is available
-const initialTimeEntries: TimeEntry[] = [];
+// Time entries - populated with demo data for verification
+const initialTimeEntries: TimeEntry[] = typeof window !== 'undefined' ? [
+  {
+    id: 1,
+    date: new Date().toISOString().split('T')[0], // Today!
+    task: 'Zjeść obiad',
+    taskId: 2,
+    project: 'System Time Tracking',
+    projectId: 2,
+    duration: '1h 00m',
+    startTime: '13:00',
+    endTime: '14:00',
+    color: 'bg-emerald-500',
+    userId: 2, // Matches mikolaj_programista / user
+  },
+  {
+    id: 2,
+    date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday!
+    task: 'Zrobić zakupy w biedronce',
+    taskId: 1,
+    project: 'System Time Tracking',
+    projectId: 2,
+    duration: '2h 30m',
+    startTime: '10:00',
+    endTime: '12:30',
+    color: 'bg-blue-500',
+    userId: 2,
+  }
+] : [];
 
 // Projects - loaded from backend API via useProjects hook
 const initialProjects: Project[] = [];
@@ -129,12 +150,18 @@ const initialReports: Report[] = [];
 
 const teams = ['Frontend', 'Backend', 'Design', 'QA', 'DevOps'];
 
-export default function TimeTrackingLayout() {
+export default function TimeTrackingLayout({ 
+  currentUser, 
+  onLogout 
+}: { 
+  currentUser: User; 
+  onLogout: () => void; 
+}) {
   // Core state
   const [isTimerRunning, setIsTimerRunning] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState(8130); // 02:15:30
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [currentMonth, setCurrentMonth] = useState(new Date(2024, 0, 1));
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
   
   // Data state
@@ -183,6 +210,28 @@ export default function TimeTrackingLayout() {
     refresh: refreshProjects
   } = useProjects();
 
+  // Use the API hook for tasks
+  const {
+    tasks: apiTasks,
+    isLoading: tasksLoading,
+    error: tasksError,
+    createTask: apiCreateTask,
+    updateTask: apiUpdateTask,
+    deleteTask: apiDeleteTask,
+    refresh: refreshTasks
+  } = useTasks();
+
+  // Use the API hook for users
+  const {
+    users: apiUsers,
+    isLoading: usersLoading,
+    error: usersError,
+    createUser: apiCreateUser,
+    updateUser: apiUpdateUser,
+    deleteUser: apiDeleteUser,
+    refresh: refreshUsers
+  } = useUsers();
+
   // Sync projects from API into local state
   useEffect(() => {
     if (apiProjects && apiProjects.length > 0) {
@@ -202,6 +251,68 @@ export default function TimeTrackingLayout() {
       setProjects(mapped);
     }
   }, [apiProjects]);
+
+  // Sync users from API into local state
+  useEffect(() => {
+    if (apiUsers && apiUsers.length > 0) {
+      const mapped: User[] = apiUsers.map((u) => ({
+        id: u.id || 0,
+        name: u.username,
+        email: '',
+        initials: u.username.slice(0, 2).toUpperCase(),
+        role: (u.role?.toLowerCase() || 'employee') as UserRole,
+        team: '',
+      }));
+      setUsers(mapped);
+    }
+  }, [apiUsers]);
+
+  // Helper: map backend task status to frontend format
+  const statusFromApi = (s: string): 'completed' | 'in-progress' | 'todo' => {
+    switch (s) {
+      case 'DONE': return 'completed';
+      case 'IN_PROGRESS': return 'in-progress';
+      default: return 'todo';
+    }
+  };
+
+  const statusToApi = (s: string): string => {
+    switch (s) {
+      case 'completed': return 'DONE';
+      case 'in-progress': return 'IN_PROGRESS';
+      default: return 'TODO';
+    }
+  };
+
+  // Filter projects for employees to only show projects they are assigned to
+  const visibleProjects = useMemo(() => {
+    if (currentUser.role === 'admin') {
+      return projects;
+    }
+    return projects.filter(project => 
+      apiTasks.some(task => 
+        task.projectId === project.id && 
+        task.assignedUsers?.some(u => u.id === currentUser.id)
+      )
+    );
+  }, [projects, apiTasks, currentUser.role, currentUser.id]);
+
+  // Filter tasks for the selected project in the log time modal that are assigned to the employee
+  const userTasksForSelectedProject = useMemo(() => {
+    const projId = Number(formData.project || formData.projectId);
+    if (!projId) return [];
+    
+    const projectTasks = apiTasks.filter(t => t.projectId === projId);
+    if (currentUser.role === 'admin') {
+      return projectTasks;
+    }
+    return projectTasks.filter(t => t.assignedUsers?.some(u => u.id === currentUser.id));
+  }, [formData.project, formData.projectId, apiTasks, currentUser.role, currentUser.id]);
+
+  // Get tasks for the currently selected project from API
+  const selectedProjectTasks: TaskDTO[] = selectedProject
+    ? apiTasks.filter(t => t.projectId === selectedProject)
+    : [];
 
   // Check online status
   useEffect(() => {
@@ -255,7 +366,10 @@ export default function TimeTrackingLayout() {
   };
 
   const getEntriesForDay = (day: number) => {
-    const dateStr = `2024-01-${day.toString().padStart(2, '0')}`;
+    const year = currentMonth.getFullYear();
+    const month = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
+    const dayStr = day.toString().padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayStr}`;
     return timeEntries.filter(entry => entry.date === dateStr && entry.userId === currentUser.id);
   };
 
@@ -354,7 +468,11 @@ export default function TimeTrackingLayout() {
     setFormErrors({});
     
     if (item) {
-      setFormData({ ...item });
+      if (type === 'add-user') {
+        setFormData({ ...item, username: item.name || item.username || '' });
+      } else {
+        setFormData({ ...item });
+      }
     } else {
       // Default values for new items
       if (type === 'add-time-entry') {
@@ -382,10 +500,9 @@ export default function TimeTrackingLayout() {
         });
       } else if (type === 'add-user') {
         setFormData({
-          name: '',
-          email: '',
+          username: '',
+          password: '',
           role: 'employee',
-          team: 'Frontend',
         });
       } else if (type === 'generate-report') {
         setFormData({
@@ -434,11 +551,12 @@ export default function TimeTrackingLayout() {
           : entry
       ));
     } else {
+      const nextId = timeEntries.length > 0 ? Math.max(...timeEntries.map(e => e.id)) + 1 : 1;
       const newEntry: TimeEntry = {
-        id: Math.max(...timeEntries.map(e => e.id)) + 1,
+        id: nextId,
         date: formData.date,
         task: formData.task,
-        taskId: 0,
+        taskId: Number(formData.taskId) || 0,
         project: project?.name || '',
         projectId: Number(formData.project),
         duration,
@@ -500,78 +618,95 @@ export default function TimeTrackingLayout() {
     }
   };
 
-  const handleSaveTask = () => {
+  const handleSaveTask = async () => {
     if (!formData.name) {
       setFormErrors({ name: 'Nazwa zadania jest wymagana' });
       return;
     }
+    if (!selectedProject) return;
 
-    const assignee = users.find(u => u.id === Number(formData.assigneeId));
-    
-    setProjects(prev => prev.map(project => {
-      if (project.id !== selectedProject) return project;
-      
+    setApiLoading(true);
+    setApiError(null);
+
+    const taskData = {
+      projectId: selectedProject,
+      name: formData.name,
+      description: formData.description || undefined,
+      status: statusToApi(formData.status || 'todo'),
+      assignedUserIds: formData.assigneeId ? [Number(formData.assigneeId)] : [],
+    };
+
+    try {
       if (editingItem) {
-        return {
-          ...project,
-          tasks: project.tasks.map(task => 
-            task.id === editingItem.id 
-              ? { 
-                  ...task, 
-                  name: formData.name,
-                  description: formData.description,
-                  assigneeId: Number(formData.assigneeId),
-                  assignee: assignee?.initials || '',
-                  status: formData.status,
-                }
-              : task
-          )
-        };
+        const result = await apiUpdateTask(editingItem.id, taskData);
+        if (!result.success) {
+          setApiError(result.error?.message || 'Nie udalo sie zaktualizowac zadania');
+          setApiLoading(false);
+          return;
+        }
       } else {
-        const newTask: Task = {
-          id: Math.max(...project.tasks.map(t => t.id), 0) + 1,
-          name: formData.name,
-          description: formData.description,
-          status: 'todo',
-          assignee: assignee?.initials || '',
-          assigneeId: Number(formData.assigneeId) || 0,
-          hours: 0,
-        };
-        return { ...project, tasks: [...project.tasks, newTask] };
+        const result = await apiCreateTask(taskData);
+        if (!result.success) {
+          setApiError(result.error?.message || 'Nie udalo sie utworzyc zadania');
+          setApiLoading(false);
+          return;
+        }
       }
-    }));
-    closeModal();
+      setApiLoading(false);
+      closeModal();
+    } catch (err) {
+      setApiError('Wystapil nieoczekiwany blad');
+      setApiLoading(false);
+    }
   };
 
-  const handleSaveUser = () => {
-    if (!formData.name || !formData.email) {
+  const handleSaveUser = async () => {
+    if (!formData.username) {
       setFormErrors({
-        name: !formData.name ? 'Imie i nazwisko jest wymagane' : '',
-        email: !formData.email ? 'Email jest wymagany' : '',
+        username: 'Nazwa uzytkownika jest wymagana',
       });
       return;
     }
 
-    const initials = formData.name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
-
-    if (editingItem) {
-      setUsers(prev => prev.map(user => 
-        user.id === editingItem.id 
-          ? { ...user, ...formData, initials }
-          : user
-      ));
-    } else {
-      const newUser: User = {
-        id: Math.max(...users.map(u => u.id)) + 1,
-        name: formData.name,
-        email: formData.email,
-        initials,
-        role: formData.role,
-        team: formData.team,
-      };
-      setUsers(prev => [...prev, newUser]);
+    if (!editingItem && !formData.password) {
+      setFormErrors({
+        password: 'Haslo jest wymagane dla nowego uzytkownika',
+      });
+      return;
     }
-    closeModal();
+
+    setApiLoading(true);
+    setApiError(null);
+
+    const userData = {
+      username: formData.username,
+      password: formData.password || undefined,
+      role: (formData.role || 'employee').toUpperCase(),
+    };
+
+    try {
+      if (editingItem) {
+        const result = await apiUpdateUser(editingItem.id, userData);
+        if (!result.success) {
+          setApiError(result.error?.message || 'Nie udalo sie zaktualizowac uzytkownika');
+          setApiLoading(false);
+          return;
+        }
+      } else {
+        const result = await apiCreateUser(userData);
+        if (!result.success) {
+          setApiError(result.error?.message || 'Nie udalo sie utworzyc uzytkownika');
+          setApiLoading(false);
+          return;
+        }
+      }
+
+      setApiLoading(false);
+      closeModal();
+    } catch (err) {
+      setApiError('Wystapil nieoczekiwany blad');
+      setApiLoading(false);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -584,7 +719,7 @@ export default function TimeTrackingLayout() {
     }
 
     const newReport: Report = {
-      id: Math.max(...reports.map(r => r.id)) + 1,
+      id: reports.length > 0 ? Math.max(...reports.map(r => r.id)) + 1 : 1,
       name: `Raport ${formData.type === 'daily' ? 'dzienny' : formData.type === 'weekly' ? 'tygodniowy' : 'miesieczny'} - ${formData.dateFrom}`,
       type: formData.type,
       dateRange: `${formData.dateFrom} - ${formData.dateTo}`,
@@ -625,15 +760,20 @@ export default function TimeTrackingLayout() {
           if (selectedProject === deleteTarget.id) setSelectedProject(null);
           break;
         case 'task':
-          // TODO: Add API call for tasks when endpoint is available
-          setProjects(prev => prev.map(project => ({
-            ...project,
-            tasks: project.tasks.filter(t => t.id !== deleteTarget.id)
-          })));
+          const taskDelResult = await apiDeleteTask(deleteTarget.id);
+          if (!taskDelResult.success) {
+            setApiError(taskDelResult.error?.message || 'Nie udalo sie usunac zadania');
+            setApiLoading(false);
+            return;
+          }
           break;
         case 'user':
-          // TODO: Add API call for users when endpoint is available
-          setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+          const userDelResult = await apiDeleteUser(deleteTarget.id);
+          if (!userDelResult.success) {
+            setApiError(userDelResult.error?.message || 'Nie udalo sie usunac uzytkownika');
+            setApiLoading(false);
+            return;
+          }
           break;
         case 'report':
           // TODO: Add API call for reports when endpoint is available
@@ -753,7 +893,7 @@ export default function TimeTrackingLayout() {
           </div>
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-sm font-medium text-slate-500 mb-1">Aktywne Projekty</h3>
-            <div className="text-3xl font-bold text-slate-900">{projects.filter(p => p.status === 'active').length}</div>
+            <div className="text-3xl font-bold text-slate-900">{visibleProjects.filter(p => p.status === 'active').length}</div>
             <p className="text-sm text-slate-500 mt-2">Wymagaja uwagi</p>
           </div>
           {isAdmin && (
@@ -959,8 +1099,10 @@ export default function TimeTrackingLayout() {
           </div>
         </div>
 
-        {/* Calendar */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            {/* Calendar */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900 capitalize">{formatMonth(currentMonth)}</h2>
             <div className="flex items-center gap-2">
@@ -971,7 +1113,7 @@ export default function TimeTrackingLayout() {
                 <ChevronLeft size={20} className="text-slate-600" />
               </button>
               <button 
-                onClick={() => setCurrentMonth(new Date(2024, 0, 1))}
+                onClick={() => setCurrentMonth(new Date())}
                 className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
               >
                 Dzisiaj
@@ -999,18 +1141,23 @@ export default function TimeTrackingLayout() {
             {days.map((day, index) => {
               const entries = day ? getEntriesForDay(day) : [];
               const isWeekend = index % 7 >= 5;
+              const today = new Date();
+              const isToday = day && 
+                today.getDate() === day && 
+                today.getMonth() === currentMonth.getMonth() && 
+                today.getFullYear() === currentMonth.getFullYear();
               
               return (
                 <div 
                   key={index} 
                   className={`min-h-28 border-b border-r border-slate-100 p-2 ${
                     isWeekend ? 'bg-slate-50/50' : 'bg-white'
-                  } ${day === 15 ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
+                  } ${isToday ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
                 >
                   {day && (
                     <>
                       <div className={`text-sm font-medium mb-1 ${
-                        day === 15 ? 'text-indigo-600' : 'text-slate-700'
+                        isToday ? 'text-indigo-600 font-bold' : 'text-slate-700'
                       }`}>
                         {day}
                       </div>
@@ -1036,12 +1183,58 @@ export default function TimeTrackingLayout() {
 
         {/* Legend */}
         <div className="mt-4 flex items-center gap-6 text-sm text-slate-600">
-          {projects.map(project => (
-            <div key={project.id} className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded ${project.color}`}></div>
-              <span>{project.name}</span>
+            {visibleProjects.map(project => (
+              <div key={project.id} className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded ${project.color}`}></div>
+                <span>{project.name}</span>
+              </div>
+            ))}
+          </div>
+          </div>
+          
+          <div className="lg:col-span-1">
+            {/* User Tasks Sidebar */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
+              <div className="px-5 py-4 border-b border-slate-200 bg-slate-50">
+                <h2 className="font-semibold text-slate-900">Twoje zadania</h2>
+                <p className="text-xs text-slate-500 mt-1">Szybki dostep do zadan</p>
+              </div>
+              <div className="p-4 flex-1 overflow-y-auto space-y-3">
+                {apiTasks.filter(t => t.assignedUsers?.some(u => u.id === currentUser.id)).length > 0 ? (
+                  apiTasks.filter(t => t.assignedUsers?.some(u => u.id === currentUser.id)).map(task => {
+                    const taskProject = projects.find(p => p.id === task.projectId);
+                    return (
+                      <div key={task.id} className="p-3 border border-slate-100 rounded-lg hover:border-indigo-200 hover:shadow-sm transition-all bg-white group cursor-pointer" onClick={() => {
+                          openModal('add-time-entry');
+                          setFormData({ project: task.projectId, task: task.name, taskId: task.id, date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:00' });
+                        }}>
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className="font-medium text-slate-900 text-sm leading-tight">{task.name}</h4>
+                          {getStatusIcon(statusFromApi(task.status))}
+                        </div>
+                        {taskProject && (
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <div className={`w-2 h-2 rounded-full ${taskProject.color}`}></div>
+                            <span className="text-xs text-slate-500 truncate">{taskProject.name}</span>
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center justify-between">
+                          {getStatusBadge(statusFromApi(task.status))}
+                          <button className="text-xs font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Loguj czas
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-slate-500 text-sm">
+                    Brak zadan przypisanych do Ciebie.
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     );
@@ -1088,7 +1281,7 @@ export default function TimeTrackingLayout() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Projects list */}
           <div className="lg:col-span-1 space-y-4">
-            {projects.map(project => (
+            {visibleProjects.map(project => (
               <div 
                 key={project.id}
                 onClick={() => setSelectedProject(project.id)}
@@ -1154,7 +1347,7 @@ export default function TimeTrackingLayout() {
                     <span>{project.loggedHours}h / {project.totalHours}h</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-slate-500">{project.tasks.length} zadan</span>
+                    <span className="text-xs text-slate-500">{apiTasks.filter(t => t.projectId === project.id).length} zadan</span>
                   </div>
                 </div>
 
@@ -1197,6 +1390,14 @@ export default function TimeTrackingLayout() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => refreshTasks()}
+                      disabled={tasksLoading}
+                      className="flex items-center gap-2 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
+                      title="Odswiez liste zadan z API"
+                    >
+                      <RefreshCw size={14} className={tasksLoading ? 'animate-spin' : ''} />
+                    </button>
                     {isAdmin && (
                       <>
                         <button 
@@ -1220,80 +1421,104 @@ export default function TimeTrackingLayout() {
 
                 {/* Tasks list */}
                 <div className="divide-y divide-slate-100">
-                  {currentProject.tasks.map(task => (
-                    <div key={task.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        {getStatusIcon(task.status)}
-                        <div>
-                          <h4 className="font-medium text-slate-900">{task.name}</h4>
-                          <div className="flex items-center gap-3 mt-1">
-                            {getStatusBadge(task.status)}
-                            <span className="text-xs text-slate-500">{task.hours}h zalogowane</span>
+                  {tasksLoading && selectedProjectTasks.length === 0 ? (
+                    <div className="px-6 py-8 text-center">
+                      <Loader2 size={24} className="animate-spin mx-auto text-slate-400 mb-2" />
+                      <p className="text-sm text-slate-500">Ladowanie zadan...</p>
+                    </div>
+                  ) : selectedProjectTasks.length === 0 ? (
+                    <div className="px-6 py-8 text-center">
+                      <p className="text-sm text-slate-500">Brak zadan w tym projekcie.</p>
+                    </div>
+                  ) : (
+                    selectedProjectTasks.map(task => (
+                      <div key={task.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          {getStatusIcon(statusFromApi(task.status))}
+                          <div>
+                            <h4 className="font-medium text-slate-900">{task.name}</h4>
+                            <div className="flex items-center gap-3 mt-1">
+                              {getStatusBadge(statusFromApi(task.status))}
+                              {task.description && (
+                                <span className="text-xs text-slate-500">{task.description}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700"
-                          title={users.find(u => u.id === task.assigneeId)?.name}
-                        >
-                          {task.assignee}
+                        <div className="flex items-center gap-3">
+                          {task.assignedUsers && task.assignedUsers.length > 0 && (
+                            <div className="flex -space-x-1">
+                              {task.assignedUsers.slice(0, 3).map(au => (
+                                <div 
+                                  key={au.id}
+                                  className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 border-2 border-white"
+                                  title={au.username}
+                                >
+                                  {au.username.slice(0, 2).toUpperCase()}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {statusFromApi(task.status) !== 'completed' && (
+                            <button 
+                              onClick={() => {
+                                setIsTimerRunning(true);
+                                setTimerSeconds(0);
+                              }}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Rozpocznij timer"
+                            >
+                              <Play size={16} />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <>
+                              <button 
+                                onClick={() => openModal('add-task', {
+                                  ...task,
+                                  status: statusFromApi(task.status),
+                                  assigneeId: task.assignedUsers?.[0]?.id || '',
+                                })}
+                                className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => confirmDelete('task', task.id!, task.name)}
+                                className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
-                        {task.status !== 'completed' && (
-                          <button 
-                            onClick={() => {
-                              setIsTimerRunning(true);
-                              setTimerSeconds(0);
-                            }}
-                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            title="Rozpocznij timer"
-                          >
-                            <Play size={16} />
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <>
-                            <button 
-                              onClick={() => openModal('add-task', task)}
-                              className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => confirmDelete('task', task.id, task.name)}
-                              className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 {/* Project stats footer */}
                 <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
                   <div className="grid grid-cols-4 gap-4 text-center">
                     <div>
-                      <div className="text-lg font-bold text-slate-900">{currentProject.tasks.length}</div>
+                      <div className="text-lg font-bold text-slate-900">{selectedProjectTasks.length}</div>
                       <div className="text-xs text-slate-500">Wszystkie</div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-emerald-600">
-                        {currentProject.tasks.filter(t => t.status === 'completed').length}
+                        {selectedProjectTasks.filter(t => t.status === 'DONE').length}
                       </div>
                       <div className="text-xs text-slate-500">Ukonczone</div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-amber-600">
-                        {currentProject.tasks.filter(t => t.status === 'in-progress').length}
+                        {selectedProjectTasks.filter(t => t.status === 'IN_PROGRESS').length}
                       </div>
                       <div className="text-xs text-slate-500">W trakcie</div>
                     </div>
                     <div>
                       <div className="text-lg font-bold text-slate-400">
-                        {currentProject.tasks.filter(t => t.status === 'todo').length}
+                        {selectedProjectTasks.filter(t => t.status === 'TODO').length}
                       </div>
                       <div className="text-xs text-slate-500">Do zrobienia</div>
                     </div>
@@ -1444,15 +1669,26 @@ export default function TimeTrackingLayout() {
             <h1 className="text-2xl font-bold text-slate-900">Zarzadzanie Zespolem</h1>
             <p className="text-slate-500 mt-1">Zarzadzaj uzytkownikami, rolami i zespolami.</p>
           </div>
-          {isAdmin && (
+          <div className="flex items-center gap-3">
             <button 
-              onClick={() => openModal('add-user')}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
+              onClick={() => refreshUsers()}
+              disabled={usersLoading}
+              className="flex items-center gap-2 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
+              title="Odswiez liste uzytkownikow z API"
             >
-              <UserPlus size={18} />
-              Dodaj uzytkownika
+              <RefreshCw size={16} className={usersLoading ? 'animate-spin' : ''} />
+              Odswiez
             </button>
-          )}
+            {isAdmin && (
+              <button 
+                onClick={() => openModal('add-user')}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
+              >
+                <UserPlus size={18} />
+                Dodaj uzytkownika
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Team stats */}
@@ -1605,34 +1841,63 @@ export default function TimeTrackingLayout() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Zadanie *</label>
-                  <input 
-                    type="text"
-                    value={formData.task || ''}
-                    onChange={(e) => setFormData({ ...formData, task: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.task ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                    placeholder="Nazwa zadania"
-                  />
-                  {formErrors.task && <p className="text-rose-500 text-xs mt-1">{formErrors.task}</p>}
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Projekt *</label>
                   <select 
                     value={formData.project || formData.projectId || ''}
-                    onChange={(e) => setFormData({ ...formData, project: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ 
+                        ...formData, 
+                        project: e.target.value,
+                        task: '' // Clear task if project changes
+                      });
+                    }}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       formErrors.project ? 'border-rose-500' : 'border-slate-200'
                     }`}
                   >
                     <option value="">Wybierz projekt</option>
-                    {projects.map(p => (
+                    {visibleProjects.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                   {formErrors.project && <p className="text-rose-500 text-xs mt-1">{formErrors.project}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Zadanie *</label>
+                  {userTasksForSelectedProject.length > 0 ? (
+                    <select
+                      value={formData.task || ''}
+                      onChange={(e) => {
+                        const selectedTask = userTasksForSelectedProject.find(t => t.name === e.target.value);
+                        setFormData({ 
+                          ...formData, 
+                          task: e.target.value,
+                          taskId: selectedTask?.id || 0
+                        });
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                        formErrors.task ? 'border-rose-500' : 'border-slate-200'
+                      }`}
+                    >
+                      <option value="">Wybierz zadanie</option>
+                      {userTasksForSelectedProject.map(t => (
+                        <option key={t.id} value={t.name}>{t.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      type="text"
+                      value={formData.task || ''}
+                      onChange={(e) => setFormData({ ...formData, task: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                        formErrors.task ? 'border-rose-500' : 'border-slate-200'
+                      }`}
+                      placeholder={formData.project ? "Brak przypisanych zadań - wpisz ręcznie" : "Najpierw wybierz projekt"}
+                      disabled={!formData.project}
+                    />
+                  )}
+                  {formErrors.task && <p className="text-rose-500 text-xs mt-1">{formErrors.task}</p>}
                 </div>
 
                 <div>
@@ -1853,6 +2118,17 @@ export default function TimeTrackingLayout() {
                 {editingItem ? 'Edytuj zadanie' : 'Nowe zadanie'}
               </h2>
 
+              {/* API Error Alert */}
+              {apiError && (
+                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
+                  <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
+                  <p className="text-sm text-rose-700">{apiError}</p>
+                  <button onClick={() => setApiError(null)} className="ml-auto p-1 hover:bg-rose-100 rounded">
+                    <X size={14} className="text-rose-500" />
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa zadania *</label>
@@ -1864,6 +2140,7 @@ export default function TimeTrackingLayout() {
                       formErrors.name ? 'border-rose-500' : 'border-slate-200'
                     }`}
                     placeholder="Nazwa zadania"
+                    disabled={apiLoading}
                   />
                   {formErrors.name && <p className="text-rose-500 text-xs mt-1">{formErrors.name}</p>}
                 </div>
@@ -1876,6 +2153,7 @@ export default function TimeTrackingLayout() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     rows={3}
                     placeholder="Opis zadania"
+                    disabled={apiLoading}
                   />
                 </div>
 
@@ -1885,6 +2163,7 @@ export default function TimeTrackingLayout() {
                     value={formData.assigneeId || ''}
                     onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={apiLoading}
                   >
                     <option value="">Wybierz pracownika</option>
                     {users.map(u => (
@@ -1893,33 +2172,42 @@ export default function TimeTrackingLayout() {
                   </select>
                 </div>
 
-                {editingItem && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                    <select 
-                      value={formData.status || 'todo'}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="todo">Do zrobienia</option>
-                      <option value="in-progress">W trakcie</option>
-                      <option value="completed">Ukonczone</option>
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                  <select 
+                    value={formData.status || 'todo'}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={apiLoading}
+                  >
+                    <option value="todo">Do zrobienia (TODO)</option>
+                    <option value="in-progress">W trakcie (IN_PROGRESS)</option>
+                    <option value="completed">Ukonczone (DONE)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* API Info */}
+              <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs text-slate-500">
+                  <span className="font-medium">Endpoint:</span> {editingItem ? `PUT /api/tasks/${editingItem.id}` : 'POST /api/tasks'}
+                </p>
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
                 <button 
                   onClick={closeModal}
                   className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={apiLoading}
                 >
                   Anuluj
                 </button>
                 <button 
                   onClick={handleSaveTask}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                  disabled={apiLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
                   {editingItem ? 'Zapisz zmiany' : 'Dodaj zadanie'}
                 </button>
               </div>
@@ -1994,46 +2282,48 @@ export default function TimeTrackingLayout() {
                 {editingItem ? 'Edytuj uzytkownika' : 'Nowy uzytkownik'}
               </h2>
 
+              {/* API Error Alert */}
+              {apiError && (
+                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
+                  <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
+                  <p className="text-sm text-rose-700">{apiError}</p>
+                  <button onClick={() => setApiError(null)} className="ml-auto p-1 hover:bg-rose-100 rounded">
+                    <X size={14} className="text-rose-500" />
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Imie i nazwisko *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa uzytkownika *</label>
                   <input 
                     type="text"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.username || ''}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.name ? 'border-rose-500' : 'border-slate-200'
+                      formErrors.username ? 'border-rose-500' : 'border-slate-200'
                     }`}
-                    placeholder="Jan Kowalski"
+                    placeholder="jan_kowalski"
+                    disabled={apiLoading}
                   />
-                  {formErrors.name && <p className="text-rose-500 text-xs mt-1">{formErrors.name}</p>}
+                  {formErrors.username && <p className="text-rose-500 text-xs mt-1">{formErrors.username}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Haslo {editingItem ? '(pozostaw puste aby nie zmieniac)' : '*'}
+                  </label>
                   <input 
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    type="password"
+                    value={formData.password || ''}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.email ? 'border-rose-500' : 'border-slate-200'
+                      formErrors.password ? 'border-rose-500' : 'border-slate-200'
                     }`}
-                    placeholder="jan.kowalski@company.pl"
+                    placeholder="********"
+                    disabled={apiLoading}
                   />
-                  {formErrors.email && <p className="text-rose-500 text-xs mt-1">{formErrors.email}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Zespol</label>
-                  <select 
-                    value={formData.team || 'Frontend'}
-                    onChange={(e) => setFormData({ ...formData, team: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {teams.map(team => (
-                      <option key={team} value={team}>{team}</option>
-                    ))}
-                  </select>
+                  {formErrors.password && <p className="text-rose-500 text-xs mt-1">{formErrors.password}</p>}
                 </div>
 
                 <div>
@@ -2042,24 +2332,35 @@ export default function TimeTrackingLayout() {
                     value={formData.role || 'employee'}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={apiLoading}
                   >
-                    <option value="employee">Pracownik</option>
-                    <option value="admin">Administrator</option>
+                    <option value="employee">Pracownik (EMPLOYEE)</option>
+                    <option value="admin">Administrator (ADMIN)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* API Info */}
+              <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs text-slate-500">
+                  <span className="font-medium">Endpoint:</span> {editingItem ? `PUT /api/users/${editingItem.id}` : 'POST /api/users'}
+                </p>
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
                 <button 
                   onClick={closeModal}
                   className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={apiLoading}
                 >
                   Anuluj
                 </button>
                 <button 
                   onClick={handleSaveUser}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                  disabled={apiLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
                   {editingItem ? 'Zapisz zmiany' : 'Dodaj uzytkownika'}
                 </button>
               </div>
@@ -2120,7 +2421,7 @@ export default function TimeTrackingLayout() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="all">Wszystkie projekty</option>
-                    {projects.map(p => (
+                    {visibleProjects.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -2185,7 +2486,7 @@ export default function TimeTrackingLayout() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {projects.length > 0 ? projects.map(p => (
+                      {visibleProjects.length > 0 ? visibleProjects.map(p => (
                         <tr key={p.id}>
                           <td className="px-4 py-3">{p.name}</td>
                           <td className="px-4 py-3">{p.loggedHours}h</td>
@@ -2200,7 +2501,7 @@ export default function TimeTrackingLayout() {
                     <tfoot className="bg-slate-50 font-medium">
                       <tr>
                         <td className="px-4 py-3">Razem</td>
-                        <td className="px-4 py-3">{projects.reduce((sum, p) => sum + p.loggedHours, 0)}h</td>
+                        <td className="px-4 py-3">{visibleProjects.reduce((sum, p) => sum + p.loggedHours, 0)}h</td>
                         <td className="px-4 py-3">100%</td>
                       </tr>
                     </tfoot>
@@ -2435,8 +2736,9 @@ export default function TimeTrackingLayout() {
                       <span className="text-xs font-mono text-slate-500">localhost:8081</span>
                     </div>
                     <div className="pt-2 border-t border-slate-100">
-                      <p className="text-xs text-slate-500 mb-2">Dostepne endpointy:</p>
-                      <div className="space-y-1 text-xs font-mono">
+                      <p className="text-xs text-slate-500 mb-2">Polaczone endpointy:</p>
+                      <div className="space-y-1 text-xs font-mono max-h-40 overflow-y-auto">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase mt-1">Projects</p>
                         <div className="flex items-center gap-2">
                           <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">GET</span>
                           <span className="text-slate-600">/api/projects</span>
@@ -2453,10 +2755,49 @@ export default function TimeTrackingLayout() {
                           <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded">DEL</span>
                           <span className="text-slate-600">/api/projects/:id</span>
                         </div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase mt-2">Tasks</p>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">GET</span>
+                          <span className="text-slate-600">/api/tasks</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">POST</span>
+                          <span className="text-slate-600">/api/tasks</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PUT</span>
+                          <span className="text-slate-600">/api/tasks/:id</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded">DEL</span>
+                          <span className="text-slate-600">/api/tasks/:id</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase mt-2">Users</p>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded">GET</span>
+                          <span className="text-slate-600">/api/users</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">POST</span>
+                          <span className="text-slate-600">/api/users</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PUT</span>
+                          <span className="text-slate-600">/api/users/:id</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded">DEL</span>
+                          <span className="text-slate-600">/api/users/:id</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase mt-2">Auth</p>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">POST</span>
+                          <span className="text-slate-600">/api/auth/login</span>
+                        </div>
                       </div>
                     </div>
                     <button 
-                      onClick={() => { refreshProjects(); setShowApiStatus(false); }}
+                      onClick={() => { refreshProjects(); refreshTasks(); refreshUsers(); setShowApiStatus(false); }}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors mt-2"
                     >
                       <RefreshCw size={14} />
@@ -2543,7 +2884,10 @@ export default function TimeTrackingLayout() {
                       <Settings size={16} />
                       Ustawienia
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50">
+                    <button 
+                      onClick={onLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                    >
                       <LogOut size={16} />
                       Wyloguj sie
                     </button>
