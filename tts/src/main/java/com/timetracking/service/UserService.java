@@ -5,6 +5,7 @@ import com.timetracking.dto.UserResponseDTO;
 import com.timetracking.entity.User;
 import com.timetracking.repository.UserRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -14,9 +15,11 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public List<UserResponseDTO> getAllUsers() {
@@ -37,7 +40,7 @@ public class UserService {
 
         User user = new User();
         user.setUsername(request.getUsername());
-        user.setPasswordHash(request.getPassword()); //tymczasowo, później zmienię to na hashowanie
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
 
         return UserResponseDTO.fromEntity(userRepository.save(user));
@@ -53,7 +56,7 @@ public class UserService {
                 });
 
         user.setUsername(request.getUsername());
-        user.setPasswordHash(request.getPassword()); // tymczasowo, później zmienię na PasswordEncoder
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
 
         return UserResponseDTO.fromEntity(userRepository.save(user));
