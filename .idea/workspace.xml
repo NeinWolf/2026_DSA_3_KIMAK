@@ -4,8 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="dokończone endpointy dla users i tasków">
+    <list default="true" id="3131c068-c20c-46ad-b82c-0d2fd0e82eda" name="Changes" comment="secure logowanie (hashowanie,  zwracanie tokenów JWT + podstawowych danych użytkownika)">
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/requests.http" beforeDir="false" afterPath="$PROJECT_DIR$/tts/requests.http" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/service/JwtService.java" beforeDir="false" afterPath="$PROJECT_DIR$/tts/src/main/java/com/timetracking/service/JwtService.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,44 +50,44 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "kajaszanska"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;kajaszanska&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/NeinWolf/2026_DSA_3_KIMAK.git",
-    "accountId": "d0afc615-bb10-4936-a0a0-48e72a278103"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/NeinWolf/2026_DSA_3_KIMAK.git&quot;,
+    &quot;accountId&quot;: &quot;d0afc615-bb10-4936-a0a0-48e72a278103&quot;
   }
-}]]></component>
-  <component name="HttpClientOnboardingState"><![CDATA[{
-  "isOnboardingCommentShown": true
-}]]></component>
-  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
-  <component name="KubernetesApiProvider"><![CDATA[{
-  "isMigrated": true
-}]]></component>
+}</component>
+  <component name="HttpClientOnboardingState">{
+  &quot;isOnboardingCommentShown&quot;: true
+}</component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.000000000000632" />
-      <entry key="S2" value="1.0020352632432437" />
-      <entry key="S5" value="1.2273310140281504" />
-      <entry key="S10" value="2.402999238137358" />
-      <entry key="S30" value="8.078144821756174" />
-      <entry key="S60" value="13.060578957461367" />
-      <entry key="M2" value="17.21452948450454" />
-      <entry key="M5" value="21.448137844779758" />
-      <entry key="M10" value="24.637037100379878" />
-      <entry key="M15" value="26.582214958296916" />
-      <entry key="M30" value="29.978162195924334" />
-      <entry key="H1" value="32.997429830251896" />
-      <entry key="H2" value="35.16132423872566" />
-      <entry key="H4" value="36.481259217445675" />
-      <entry key="D1" value="37.73155580807362" />
-      <entry key="W1" value="37.96125403653512" />
+      <entry key="MS100" value="1.63674413344775" />
+      <entry key="MS500" value="2.593515530786285" />
+      <entry key="S2" value="3.3437741013400077" />
+      <entry key="S5" value="4.858879420753597" />
+      <entry key="S10" value="7.461967337510677" />
+      <entry key="S30" value="11.942985313908606" />
+      <entry key="S60" value="13.894160192830581" />
+      <entry key="M2" value="15.351196797862666" />
+      <entry key="M5" value="17.41128111438186" />
+      <entry key="M10" value="21.81193960143591" />
+      <entry key="M15" value="26.099578656716822" />
+      <entry key="M30" value="34.78831766300801" />
+      <entry key="H1" value="42.75016490417573" />
+      <entry key="H2" value="48.466040080540864" />
+      <entry key="H4" value="51.96179697602553" />
+      <entry key="D1" value="55.28471030240937" />
+      <entry key="W1" value="55.89671420015361" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -103,23 +109,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9726549474122855" />
-      <entry key="MS500" value="0.9944701686738429" />
-      <entry key="S2" value="1.0006468089921394" />
-      <entry key="S5" value="1.2266345645425332" />
-      <entry key="S10" value="2.402281684281301" />
-      <entry key="S30" value="8.077332211521545" />
-      <entry key="S60" value="13.059927068542308" />
-      <entry key="M2" value="17.214060641924796" />
-      <entry key="M5" value="21.447658734505456" />
-      <entry key="M10" value="24.63655262308958" />
-      <entry key="M15" value="26.581782655038147" />
-      <entry key="M30" value="29.977861606130087" />
-      <entry key="H1" value="32.99724877384716" />
-      <entry key="H2" value="35.16122410745527" />
-      <entry key="H4" value="36.48120643789088" />
-      <entry key="D1" value="37.73154660332387" />
-      <entry key="W1" value="37.96125271113141" />
+      <entry key="MS100" value="1.0458125125048578" />
+      <entry key="MS500" value="2.4278653815567512" />
+      <entry key="S2" value="3.298073197862183" />
+      <entry key="S5" value="4.833917558460068" />
+      <entry key="S10" value="7.441046098032813" />
+      <entry key="S30" value="11.93059737594442" />
+      <entry key="S60" value="13.886544936417646" />
+      <entry key="M2" value="15.346618802981187" />
+      <entry key="M5" value="17.409055498411533" />
+      <entry key="M10" value="21.81064995385105" />
+      <entry key="M15" value="26.0986137281515" />
+      <entry key="M30" value="34.78772076902567" />
+      <entry key="H1" value="42.74981182871121" />
+      <entry key="H2" value="48.465843936797356" />
+      <entry key="H4" value="51.9616929625264" />
+      <entry key="D1" value="55.284692034108296" />
+      <entry key="W1" value="55.89671156599814" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -143,6 +149,10 @@
     "HTTP Request.requests | Delete user.executor": "Run",
     "HTTP Request.requests | Get all tasks.executor": "Run",
     "HTTP Request.requests | Get all users.executor": "Run",
+    "HTTP Request.requests | Login and get JWT.executor": "Run",
+    "HTTP Request.requests | Login.executor": "Run",
+    "HTTP Request.requests | Tasks with token - should return 200.executor": "Run",
+    "HTTP Request.requests | Tasks without token - should return 401/403.executor": "Run",
     "HTTP Request.requests | Update task.executor": "Run",
     "HTTP Request.requests | Update user.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
@@ -182,11 +192,11 @@
         <entry key="HttpClient.HttpRequestRunConfigurationType">
           <value>
             <map>
-              <entry key="requests | Create task" value="STOPPED" />
-              <entry key="requests | Delete task" value="STOPPED" />
-              <entry key="requests | Delete user" value="STOPPED" />
-              <entry key="requests | Get all tasks" value="STOPPED" />
-              <entry key="requests | Update task" value="STOPPED" />
+              <entry key="requests | Create user" value="STOPPED" />
+              <entry key="requests | Login" value="STOPPED" />
+              <entry key="requests | Login and get JWT" value="STOPPED" />
+              <entry key="requests | Tasks with token - should return 200" value="STOPPED" />
+              <entry key="requests | Tasks without token - should return 401/403" value="STOPPED" />
             </map>
           </value>
         </entry>
@@ -194,19 +204,19 @@
     </option>
   </component>
   <component name="RunManager" selected="Spring Boot.TimeTrackingApplication">
-    <configuration name="requests | Create task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Create task" index="6" runType="Run single request">
+    <configuration name="requests | Create user" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Create user" index="2" runType="Run single request">
       <method v="2" />
     </configuration>
-    <configuration name="requests | Delete task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Delete task" index="8" runType="Run single request">
+    <configuration name="requests | Login and get JWT" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Login and get JWT" index="10" runType="Run single request">
       <method v="2" />
     </configuration>
-    <configuration name="requests | Delete user" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Delete user" index="4" runType="Run single request">
+    <configuration name="requests | Login" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Login" index="3" runType="Run single request">
       <method v="2" />
     </configuration>
-    <configuration name="requests | Get all tasks" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Get all tasks" index="5" runType="Run single request">
+    <configuration name="requests | Tasks with token - should return 200" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Tasks with token - should return 200" index="12" runType="Run single request">
       <method v="2" />
     </configuration>
-    <configuration name="requests | Update task" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Update task" index="7" runType="Run single request">
+    <configuration name="requests | Tasks without token - should return 401/403" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$PROJECT_DIR$/tts/requests.http" executionIdentifier="Tasks without token - should return 401/403" index="11" runType="Run single request">
       <method v="2" />
     </configuration>
     <configuration default="true" type="JetRunConfigurationType">
@@ -230,11 +240,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="HTTP Request.requests | Delete task" />
-        <item itemvalue="HTTP Request.requests | Update task" />
-        <item itemvalue="HTTP Request.requests | Create task" />
-        <item itemvalue="HTTP Request.requests | Get all tasks" />
-        <item itemvalue="HTTP Request.requests | Delete user" />
+        <item itemvalue="HTTP Request.requests | Tasks with token - should return 200" />
+        <item itemvalue="HTTP Request.requests | Tasks without token - should return 401/403" />
+        <item itemvalue="HTTP Request.requests | Login and get JWT" />
+        <item itemvalue="HTTP Request.requests | Login" />
+        <item itemvalue="HTTP Request.requests | Create user" />
       </list>
     </recent_temporary>
   </component>
@@ -261,7 +271,10 @@
       <workItem from="1778503322835" duration="1119000" />
       <workItem from="1778504461703" duration="3714000" />
       <workItem from="1779655051504" duration="488000" />
-      <workItem from="1779656268910" duration="4347000" />
+      <workItem from="1779656268910" duration="6652000" />
+      <workItem from="1779700740644" duration="354000" />
+      <workItem from="1779800597166" duration="2036000" />
+      <workItem from="1780874168332" duration="1968000" />
     </task>
     <task id="LOCAL-00001" summary="dokończone endpointy dla users i tasków">
       <option name="closed" value="true" />
@@ -271,7 +284,23 @@
       <option name="project" value="LOCAL" />
       <updated>1779660236879</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="dokończone endpointy dla users i tasków">
+      <option name="closed" value="true" />
+      <created>1779660730842</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1779660730842</updated>
+    </task>
+    <task id="LOCAL-00003" summary="secure logowanie (hashowanie,  zwracanie tokenów JWT + podstawowych danych użytkownika)">
+      <option name="closed" value="true" />
+      <created>1779700917543</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1779700917544</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -290,6 +319,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="dokończone endpointy dla users i tasków" />
-    <option name="LAST_COMMIT_MESSAGE" value="dokończone endpointy dla users i tasków" />
+    <MESSAGE value="secure logowanie (hashowanie,  zwracanie tokenów JWT + podstawowych danych użytkownika)" />
+    <option name="LAST_COMMIT_MESSAGE" value="secure logowanie (hashowanie,  zwracanie tokenów JWT + podstawowych danych użytkownika)" />
   </component>
 </project>

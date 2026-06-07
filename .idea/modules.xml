@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/idea.iml" filepath="$PROJECT_DIR$/.idea/idea.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/tts.main.iml" filepath="$PROJECT_DIR$/.idea/modules/tts.main.iml" />
     </modules>
   </component>
 </project>
