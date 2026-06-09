@@ -41,10 +41,74 @@ export interface LoginRequestDTO {
   password?: string;
 }
 
+export interface ReportResponseDTO<T> {
+  type: string;
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  data: T[];
+}
+
+export interface SummaryReportItemDTO {
+  userId: number;
+  username: string;
+  totalHours: number;
+  totalEntries: number;
+}
+
+export interface DetailedReportItemDTO {
+  userId: number;
+  username: string;
+  projectId: number;
+  projectName: string;
+  taskId: number;
+  taskName: string;
+  duration: string;
+  startTime: string;
+  endTime: string;
+  date: string;
+}
+
+export interface ProjectReportItemDTO {
+  projectId: number;
+  projectName: string;
+  totalHours: number;
+  employeeCount: number;
+}
+
+export interface TeamReportItemDTO {
+  teamId: number;
+  teamName: string;
+  totalHours: number;
+  memberCount: number;
+}
+
 export interface ApiError {
   status: number;
   message?: string;
   errors?: Record<string, string>;
+}
+
+// Helper to decode JWT and check if it's expired
+export function isTokenValid(token: string): boolean {
+  if (!token) return false;
+  try {
+    const payloadBase64 = token.split('.')[1];
+    if (!payloadBase64) return false;
+    
+    // Decode base64
+    const decodedJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+    const decoded = JSON.parse(decodedJson);
+    
+    // Check expiration if present
+    if (decoded.exp) {
+      const expirationDate = new Date(decoded.exp * 1000);
+      return expirationDate > new Date();
+    }
+    return true; // Token has no expiration
+  } catch (e) {
+    return false; // Invalid token format
+  }
 }
 
 // Generic fetch wrapper with error handling
@@ -77,6 +141,25 @@ async function apiFetch<T>(
     // Handle 204 No Content (successful delete)
     if (response.status === 204) {
       return { data: undefined };
+    }
+
+    // Handle 401/403 - token expired or invalid, redirect to login
+    if (response.status === 401 || response.status === 403) {
+      // Don't redirect if this is the login endpoint itself
+      if (!endpoint.includes('/auth/login')) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.reload();
+        }
+      }
+      const data = await response.json().catch(() => null);
+      return {
+        error: {
+          status: response.status,
+          message: data?.message || 'Sesja wygasła. Zaloguj się ponownie.',
+        },
+      };
     }
 
     const data = await response.json().catch(() => null);
@@ -255,6 +338,27 @@ export async function login(
 }
 
 // ============================================
+// REPORTS API
+// ============================================
+
+export async function getReports(): Promise<{ data?: ReportResponseDTO<any>[]; error?: ApiError }> {
+  return apiFetch<ReportResponseDTO<any>[]>('/reports');
+}
+
+export async function generateReport<T>(
+  type: 'summary' | 'detailed' | 'by-project' | 'by-team',
+  startDate?: string,
+  endDate?: string
+): Promise<{ data?: ReportResponseDTO<T>; error?: ApiError }> {
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<ReportResponseDTO<T>>(`/reports/${type}${queryString}`);
+}
+
+// ============================================
 // HELPER HOOKS (for use with SWR)
 // ============================================
 
@@ -279,6 +383,14 @@ export const fetcher = async <T>(url: string): Promise<T> => {
   });
 
   if (!response.ok) {
+    // Handle 401/403 - token expired or invalid, redirect to login
+    if (response.status === 401 || response.status === 403) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      }
+    }
     const error = await response.json().catch(() => ({}));
     throw new Error(error.message || `HTTP error ${response.status}`);
   }

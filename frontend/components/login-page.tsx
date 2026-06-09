@@ -27,25 +27,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const { data, error: apiError } = await login({ username, password });
 
       if (apiError || !data) {
-        // TEMPORARY DEVELOPER BYPASS (Backend is throwing 500 errors)
-        if ((username === 'admin' && password === 'admin') || (username === 'user' && password === 'user')) {
-          console.warn('Backend login failed. Using temporary developer bypass for credentials:', username);
-          const bypassUser: User = {
-            id: username === 'admin' ? 1 : 2,
-            name: username === 'admin' ? 'Administrator' : 'Użytkownik',
-            email: `${username}@company.pl`,
-            initials: username === 'admin' ? 'AD' : 'US',
-            role: username === 'admin' ? 'admin' : 'employee',
-            team: 'Frontend',
-          };
-          
-          localStorage.setItem('token', `dev-bypass-token-${username}`);
-          localStorage.setItem('user', JSON.stringify(bypassUser));
-          onLogin(bypassUser);
-          return;
-        }
-
-        setError(apiError?.message || 'Nie udało się zalogować. Sprawdź dane (backend zwraca błąd).');
+        setError(apiError?.message || 'Nie udało się zalogować. Sprawdź dane logowania.');
         setIsLoading(false);
         return;
       }
@@ -112,7 +94,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
                   className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  placeholder="admin"
+                  placeholder="test_user"
                 />
               </div>
             </div>
@@ -176,7 +158,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </form>
           
           <div className="mt-6 text-center text-xs text-slate-500">
-            Domyślne dane: <span className="font-mono bg-slate-100 px-1 rounded text-slate-700">admin / admin</span> lub <span className="font-mono bg-slate-100 px-1 rounded text-slate-700">user / user</span>
+            Testowe dane: <span className="font-mono bg-slate-100 px-1 rounded text-slate-700">test_user / test123</span>
           </div>
         </div>
       </div>

@@ -43,13 +43,30 @@ import {
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useUsers } from '@/hooks/use-users';
+import { useReports } from '@/hooks/use-reports';
+import { generateReport } from '@/lib/api';
 import type { ProjectDTO, TaskDTO, ApiError } from '@/lib/api';
 
-type ViewType = 'dashboard' | 'my-time' | 'projects' | 'reports' | 'team';
-type ModalType = 'none' | 'add-time-entry' | 'edit-time-entry' | 'add-project' | 'edit-project' | 'add-task' | 'assign-employee' | 'add-user' | 'generate-report' | 'view-report' | 'delete-confirm';
+import { DashboardView } from './views/DashboardView';
+import { MyTimeView } from './views/MyTimeView';
+import { ProjectsView } from './views/ProjectsView';
+import { ReportsView } from './views/ReportsView';
+import { TeamView } from './views/TeamView';
+
+import { TimeEntryModal } from './modals/TimeEntryModal';
+import { ProjectModal } from './modals/ProjectModal';
+import { TaskModal } from './modals/TaskModal';
+import { AssignEmployeeModal } from './modals/AssignEmployeeModal';
+import { UserModal } from './modals/UserModal';
+import { GenerateReportModal } from './modals/GenerateReportModal';
+import { ViewReportModal } from './modals/ViewReportModal';
+import { DeleteConfirmModal } from './modals/DeleteConfirmModal';
+
+export type ViewType = 'dashboard' | 'my-time' | 'projects' | 'reports' | 'team';
+export type ModalType = 'none' | 'add-time-entry' | 'edit-time-entry' | 'add-project' | 'edit-project' | 'add-task' | 'assign-employee' | 'add-user' | 'generate-report' | 'view-report' | 'delete-confirm';
 export type UserRole = 'admin' | 'employee';
-type SortField = 'date' | 'duration' | 'project' | 'task';
-type SortDirection = 'asc' | 'desc';
+export type SortField = 'date' | 'duration' | 'project' | 'task';
+export type SortDirection = 'asc' | 'desc';
 
 export interface User {
   id: number;
@@ -61,7 +78,7 @@ export interface User {
   activeTimer?: { task: string; project: string; startTime: Date };
 }
 
-interface TimeEntry {
+export interface TimeEntry {
   id: number;
   date: string;
   task: string;
@@ -75,7 +92,7 @@ interface TimeEntry {
   userId: number;
 }
 
-interface Task {
+export interface Task {
   id: number;
   name: string;
   status: 'completed' | 'in-progress' | 'todo';
@@ -85,7 +102,7 @@ interface Task {
   description?: string;
 }
 
-interface Project {
+export interface Project {
   id: number;
   name: string;
   client: string;
@@ -93,18 +110,18 @@ interface Project {
   progress: number;
   totalHours: number;
   loggedHours: number;
-  status: 'active' | 'completed' | 'on-hold';
   tasks: Task[];
   teamMembers: number[];
 }
 
-interface Report {
+export interface Report {
   id: number;
   name: string;
-  type: 'daily' | 'weekly' | 'monthly';
+  type: 'summary' | 'detailed' | 'by-project' | 'by-team';
   dateRange: string;
   generatedAt: string;
   generatedBy: string;
+  data?: any;
 }
 
 // Current user is now passed as a prop
@@ -148,7 +165,7 @@ const initialProjects: Project[] = [];
 // Reports - will be loaded from API when endpoint is available
 const initialReports: Report[] = [];
 
-const teams = ['Frontend', 'Backend', 'Design', 'QA', 'DevOps'];
+export const teams = ['Frontend', 'Backend', 'Design', 'QA', 'DevOps'];
 
 export default function TimeTrackingLayout({ 
   currentUser, 
@@ -158,8 +175,9 @@ export default function TimeTrackingLayout({
   onLogout: () => void; 
 }) {
   // Core state
-  const [isTimerRunning, setIsTimerRunning] = useState(true);
-  const [timerSeconds, setTimerSeconds] = useState(8130); // 02:15:30
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [activeTimerTask, setActiveTimerTask] = useState<{ id: number; name: string; projectId: number; projectName: string } | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
@@ -167,8 +185,30 @@ export default function TimeTrackingLayout({
   // Data state
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(initialTimeEntries);
+  const [isTimeEntriesLoaded, setIsTimeEntriesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('timeEntries');
+      if (stored) {
+        try {
+          setTimeEntries(JSON.parse(stored));
+        } catch (e) {
+          console.error('Failed to parse timeEntries from localStorage', e);
+        }
+      }
+      setIsTimeEntriesLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isTimeEntriesLoaded && typeof window !== 'undefined') {
+      localStorage.setItem('timeEntries', JSON.stringify(timeEntries));
+    }
+  }, [timeEntries, isTimeEntriesLoaded]);
+
   const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [reports, setReports] = useState<Report[]>(initialReports);
+  const [reports, setReports] = useState<Report[]>([]);
   
   // Modal state
   const [activeModal, setActiveModal] = useState<ModalType>('none');
@@ -232,25 +272,58 @@ export default function TimeTrackingLayout({
     refresh: refreshUsers
   } = useUsers();
 
+  // Use the API hook for reports
+  const {
+    reports: apiReports,
+    isLoading: reportsLoading,
+    isError: reportsError,
+    refreshReports
+  } = useReports();
+
   // Sync projects from API into local state
   useEffect(() => {
     if (apiProjects && apiProjects.length > 0) {
       const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'];
-      const mapped: Project[] = apiProjects.map((p, index) => ({
-        id: p.id || index + 1,
-        name: p.name,
-        client: p.description || '',
-        color: colors[index % colors.length],
-        progress: 0,
-        totalHours: 0,
-        loggedHours: 0,
-        status: 'active' as const,
-        tasks: [],
-        teamMembers: [],
-      }));
+      
+      let projectHours: Record<number, number> = {};
+      if (typeof window !== 'undefined') {
+        try {
+          const projectHoursStr = localStorage.getItem('projectTotalHours');
+          if (projectHoursStr) {
+            projectHours = JSON.parse(projectHoursStr);
+          }
+        } catch (e) {}
+      }
+
+      const mapped: Project[] = apiProjects.map((p, index) => {
+        const projId = p.id || index + 1;
+        const totalH = projectHours[projId] || 40;
+
+        let loggedHours = 0;
+        timeEntries.filter(te => te.projectId === projId).forEach(te => {
+          const match = te.duration.match(/(\d+)h (\d+)m/);
+          if (match) {
+            loggedHours += parseInt(match[1]) + parseInt(match[2]) / 60;
+          }
+        });
+
+        const progress = totalH > 0 ? Math.min(100, Math.round((loggedHours / totalH) * 100)) : 0;
+
+        return {
+          id: projId,
+          name: p.name,
+          client: p.description || '',
+          color: colors[index % colors.length],
+          progress,
+          totalHours: totalH,
+          loggedHours: Math.round(loggedHours * 10) / 10,
+          tasks: [],
+          teamMembers: [],
+        };
+      });
       setProjects(mapped);
     }
-  }, [apiProjects]);
+  }, [apiProjects, timeEntries]);
 
   // Sync users from API into local state
   useEffect(() => {
@@ -266,6 +339,22 @@ export default function TimeTrackingLayout({
       setUsers(mapped);
     }
   }, [apiUsers]);
+
+  // Sync reports from API into local state
+  useEffect(() => {
+    if (apiReports) {
+      const mapped: Report[] = apiReports.map((r: any, index: number) => ({
+        id: index + 1, // API might not return IDs for history, so generate one
+        name: `Raport: ${r.type.replace('_', ' ').toLowerCase()}`,
+        type: r.type.toLowerCase(),
+        dateRange: `${r.startDate || ''} - ${r.endDate || ''}`,
+        generatedAt: r.generatedAt ? new Date(r.generatedAt).toLocaleString() : '',
+        generatedBy: 'System', // API does not return this in the list currently
+        data: r.data || [],
+      }));
+      setReports(mapped);
+    }
+  }, [apiReports]);
 
   // Helper: map backend task status to frontend format
   const statusFromApi = (s: string): 'completed' | 'in-progress' | 'todo' => {
@@ -370,7 +459,14 @@ export default function TimeTrackingLayout({
     const month = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
     const dayStr = day.toString().padStart(2, '0');
     const dateStr = `${year}-${month}-${dayStr}`;
-    return timeEntries.filter(entry => entry.date === dateStr && entry.userId === currentUser.id);
+    return timeEntries.filter(entry => {
+      if (entry.date !== dateStr) return false;
+      const isAdmin = currentUser.role === 'admin';
+      if (isAdmin && filterProject !== 'all') {
+        return entry.projectId === filterProject;
+      }
+      return entry.userId === currentUser.id && (filterProject === 'all' || entry.projectId === filterProject);
+    });
   };
 
   const formatMonth = (date: Date) => {
@@ -598,6 +694,15 @@ export default function TimeTrackingLayout({
           setApiLoading(false);
           return;
         }
+
+        if (typeof window !== 'undefined') {
+          try {
+            const projectHoursStr = localStorage.getItem('projectTotalHours');
+            const projectHours = projectHoursStr ? JSON.parse(projectHoursStr) : {};
+            projectHours[editingItem.id] = parseInt(formData.totalHours) || 40;
+            localStorage.setItem('projectTotalHours', JSON.stringify(projectHours));
+          } catch (e) {}
+        }
       } else {
         // CREATE new project via API
         const result = await apiCreateProject(projectData);
@@ -606,6 +711,15 @@ export default function TimeTrackingLayout({
           setApiError(result.error?.message || 'Nie udalo sie utworzyc projektu');
           setApiLoading(false);
           return;
+        }
+
+        if (result.data?.id && typeof window !== 'undefined') {
+          try {
+            const projectHoursStr = localStorage.getItem('projectTotalHours');
+            const projectHours = projectHoursStr ? JSON.parse(projectHoursStr) : {};
+            projectHours[result.data.id] = parseInt(formData.totalHours) || 40;
+            localStorage.setItem('projectTotalHours', JSON.stringify(projectHours));
+          } catch (e) {}
         }
       }
       
@@ -709,7 +823,7 @@ export default function TimeTrackingLayout({
     }
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!formData.dateFrom || !formData.dateTo) {
       setFormErrors({
         dateFrom: !formData.dateFrom ? 'Data poczatkowa jest wymagana' : '',
@@ -718,16 +832,126 @@ export default function TimeTrackingLayout({
       return;
     }
 
-    const newReport: Report = {
-      id: reports.length > 0 ? Math.max(...reports.map(r => r.id)) + 1 : 1,
-      name: `Raport ${formData.type === 'daily' ? 'dzienny' : formData.type === 'weekly' ? 'tygodniowy' : 'miesieczny'} - ${formData.dateFrom}`,
-      type: formData.type,
-      dateRange: `${formData.dateFrom} - ${formData.dateTo}`,
-      generatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      generatedBy: currentUser.name,
-    };
-    setReports(prev => [newReport, ...prev]);
-    closeModal();
+    setApiLoading(true);
+    setApiError(null);
+
+    try {
+      const type = formData.type || 'summary';
+      
+      // We must generate reports locally because the backend has no TimeEntries
+      const start = new Date(formData.dateFrom);
+      const end = new Date(formData.dateTo);
+      start.setHours(0,0,0,0);
+      end.setHours(23,59,59,999);
+
+      const relevantEntries = timeEntries.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= start && entryDate <= end;
+      });
+
+      const parseDuration = (dur: string) => {
+        const match = dur.match(/(\d+)h (\d+)m/);
+        if (!match) return 0;
+        return parseInt(match[1]) + parseInt(match[2]) / 60;
+      };
+
+      let generatedData: any[] = [];
+
+      if (type === 'summary') {
+        const userMap = new Map<number, { username: string; totalHours: number; totalEntries: number }>();
+        relevantEntries.forEach(entry => {
+          const user = users.find(u => u.id === entry.userId);
+          const username = user ? user.name : `User ${entry.userId}`;
+          const dur = parseDuration(entry.duration);
+          
+          if (!userMap.has(entry.userId)) {
+            userMap.set(entry.userId, { username, totalHours: 0, totalEntries: 0 });
+          }
+          const stats = userMap.get(entry.userId)!;
+          stats.totalHours += dur;
+          stats.totalEntries += 1;
+        });
+        generatedData = Array.from(userMap.values()).map(d => ({
+          ...d,
+          totalHours: Math.round(d.totalHours * 100) / 100
+        }));
+      } else if (type === 'detailed') {
+        generatedData = relevantEntries.map(entry => {
+          const user = users.find(u => u.id === entry.userId);
+          const project = projects.find(p => p.id === entry.projectId);
+          const task = apiTasks.find(t => t.id === entry.taskId);
+          
+          return {
+            date: entry.date,
+            username: user ? user.name : `User ${entry.userId}`,
+            projectName: project ? project.name : `Project ${entry.projectId}`,
+            taskName: task ? task.name : `Task ${entry.taskId}`,
+            duration: entry.duration
+          };
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      } else if (type === 'by-project') {
+        const projectMap = new Map<number, { projectName: string; totalHours: number; employeeSet: Set<number> }>();
+        relevantEntries.forEach(entry => {
+          const project = projects.find(p => p.id === entry.projectId);
+          const projectName = project ? project.name : `Project ${entry.projectId}`;
+          const dur = parseDuration(entry.duration);
+          
+          if (!projectMap.has(entry.projectId)) {
+            projectMap.set(entry.projectId, { projectName, totalHours: 0, employeeSet: new Set() });
+          }
+          const stats = projectMap.get(entry.projectId)!;
+          stats.totalHours += dur;
+          stats.employeeSet.add(entry.userId);
+        });
+        generatedData = Array.from(projectMap.values()).map(d => ({
+          projectName: d.projectName,
+          totalHours: Math.round(d.totalHours * 100) / 100,
+          employeeCount: d.employeeSet.size
+        }));
+      } else if (type === 'by-team') {
+        // Teams don't strictly map to entries directly, so we map users to teams
+        const teamMap = new Map<string, { teamName: string; totalHours: number; memberSet: Set<number> }>();
+        relevantEntries.forEach(entry => {
+          const user = users.find(u => u.id === entry.userId);
+          const teamName = user?.team || 'Inne';
+          const dur = parseDuration(entry.duration);
+          
+          if (!teamMap.has(teamName)) {
+            teamMap.set(teamName, { teamName, totalHours: 0, memberSet: new Set() });
+          }
+          const stats = teamMap.get(teamName)!;
+          stats.totalHours += dur;
+          stats.memberSet.add(entry.userId);
+        });
+        generatedData = Array.from(teamMap.values()).map(d => ({
+          teamName: d.teamName,
+          totalHours: Math.round(d.totalHours * 100) / 100,
+          memberCount: d.memberSet.size
+        }));
+      }
+
+      setApiLoading(false);
+      
+      const newReport = {
+        id: Date.now(), // Temporary ID for viewing immediately
+        name: `Raport: ${type.replace('_', ' ').toLowerCase()}`,
+        type: type,
+        dateRange: `${formData.dateFrom} - ${formData.dateTo}`,
+        generatedAt: new Date().toLocaleString(),
+        generatedBy: currentUser.name,
+        data: generatedData,
+      };
+
+      // We add it to the visible reports array locally
+      setReports(prev => [newReport, ...prev]);
+
+      setActiveModal('view-report');
+      setEditingItem(newReport);
+
+    } catch (err) {
+      setApiError('Wystapil nieoczekiwany blad przy generowaniu raportu');
+      setApiLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -746,11 +970,11 @@ export default function TimeTrackingLayout({
           // DELETE project via API
           const result = await apiDeleteProject(deleteTarget.id);
           
-          if (!result.success) {
-            if (result.error?.status === 409) {
+          if (result.error) {
+            if (result.error.status === 409) {
               setApiError('Nie mozna usunac projektu z przypisanymi zadaniami');
             } else {
-              setApiError(result.error?.message || 'Nie udalo sie usunac projektu');
+              setApiError(result.error.message || 'Nie udalo sie usunac projektu');
             }
             setApiLoading(false);
             return;
@@ -761,16 +985,16 @@ export default function TimeTrackingLayout({
           break;
         case 'task':
           const taskDelResult = await apiDeleteTask(deleteTarget.id);
-          if (!taskDelResult.success) {
-            setApiError(taskDelResult.error?.message || 'Nie udalo sie usunac zadania');
+          if (taskDelResult.error) {
+            setApiError(taskDelResult.error.message || 'Nie udalo sie usunac zadania');
             setApiLoading(false);
             return;
           }
           break;
         case 'user':
           const userDelResult = await apiDeleteUser(deleteTarget.id);
-          if (!userDelResult.success) {
-            setApiError(userDelResult.error?.message || 'Nie udalo sie usunac uzytkownika');
+          if (userDelResult.error) {
+            setApiError(userDelResult.error.message || 'Nie udalo sie usunac uzytkownika');
             setApiLoading(false);
             return;
           }
@@ -807,11 +1031,14 @@ export default function TimeTrackingLayout({
 
   // Sorting & Filtering (UC-14)
   const getSortedFilteredEntries = () => {
-    let filtered = [...timeEntries].filter(e => e.userId === currentUser.id);
+    let filtered = [...timeEntries].filter(e => {
+      const isAdmin = currentUser.role === 'admin';
+      if (isAdmin && filterProject !== 'all') {
+        return e.projectId === filterProject;
+      }
+      return e.userId === currentUser.id && (filterProject === 'all' || e.projectId === filterProject);
+    });
     
-    if (filterProject !== 'all') {
-      filtered = filtered.filter(e => e.projectId === filterProject);
-    }
     if (filterDateFrom) {
       filtered = filtered.filter(e => e.date >= filterDateFrom);
     }
@@ -850,971 +1077,109 @@ export default function TimeTrackingLayout({
     }
   };
 
-  // Render Dashboard (UC-05, UC-12)
-  const renderDashboard = () => {
-    const isAdmin = currentUser.role === 'admin';
-    const activeTimers = users.filter(u => u.activeTimer);
-
-    return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              {isAdmin ? 'Dashboard Administratora' : 'Twoj Dashboard'}
-            </h1>
-            <p className="text-slate-500 mt-1">
-              {isAdmin ? 'Przegladaj statystyki calego zespolu.' : 'Oto podsumowanie twojej pracy na dzisiaj.'}
-            </p>
-          </div>
-          <button 
-            onClick={() => openModal('add-time-entry')}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-          >
-            <Plus size={18} />
-            Dodaj wpis recznie
-          </button>
-        </div>
-
-        {/* Stats */}
-        <div className={`grid grid-cols-1 gap-6 mb-8 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">
-              {isAdmin ? 'Laczny czas zespolu (Dzisiaj)' : 'Zalogowany czas (Dzisiaj)'}
-            </h3>
-            <div className="text-3xl font-bold text-slate-900">{isAdmin ? '0h 00m' : '0h 00m'}</div>
-            <p className="text-sm text-slate-500 mt-2">Brak danych</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">
-              {isAdmin ? 'Laczny czas zespolu (Tydzien)' : 'Zalogowany czas (Tydzien)'}
-            </h3>
-            <div className="text-3xl font-bold text-slate-900">{isAdmin ? '0h 00m' : '0h 00m'}</div>
-            <p className="text-sm text-slate-500 mt-2">Cel: {isAdmin ? '200h' : '40h'}</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Aktywne Projekty</h3>
-            <div className="text-3xl font-bold text-slate-900">{visibleProjects.filter(p => p.status === 'active').length}</div>
-            <p className="text-sm text-slate-500 mt-2">Wymagaja uwagi</p>
-          </div>
-          {isAdmin && (
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-medium text-slate-500 mb-1">Aktywni pracownicy</h3>
-              <div className="text-3xl font-bold text-slate-900">{activeTimers.length} / {users.length}</div>
-              <p className="text-sm text-emerald-600 mt-2 font-medium">Pracuja teraz</p>
-            </div>
-          )}
-        </div>
-
-        {/* Admin: Real-time monitoring (UC-08) */}
-        {isAdmin && activeTimers.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-              <Activity size={20} className="text-emerald-500" />
-              <h2 className="font-semibold text-slate-900">Aktywne sesje pracy</h2>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Na zywo</span>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {activeTimers.map(user => (
-                <div key={user.id} className="px-6 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                        {user.initials}
-                      </div>
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-900">{user.name}</p>
-                      <p className="text-sm text-slate-500">{user.team}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-slate-900">{user.activeTimer?.task}</p>
-                    <p className="text-sm text-slate-500">{user.activeTimer?.project}</p>
-                  </div>
-                  <div className="text-lg font-mono font-bold text-emerald-600">
-                    {formatTimer(Math.floor((Date.now() - (user.activeTimer?.startTime.getTime() || 0)) / 1000))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Time entries table with filtering */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Dzisiejsze wpisy</h2>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  showFilters ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Filter size={16} />
-                Filtry
-              </button>
-            </div>
-          </div>
-
-          {/* Filters panel */}
-          {showFilters && (
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-600">Projekt:</label>
-                <select 
-                  value={filterProject}
-                  onChange={(e) => setFilterProject(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">Wszystkie</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-600">Od:</label>
-                <input 
-                  type="date" 
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-600">Do:</label>
-                <input 
-                  type="date" 
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <button 
-                onClick={() => { setFilterProject('all'); setFilterDateFrom(''); setFilterDateTo(''); }}
-                className="text-sm text-indigo-600 hover:text-indigo-700"
-              >
-                Wyczysc filtry
-              </button>
-            </div>
-          )}
-          
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-medium">
-              <tr>
-                <th className="px-6 py-3">
-                  <button onClick={() => toggleSort('task')} className="flex items-center gap-1 hover:text-slate-700">
-                    Zadanie
-                    <ArrowUpDown size={14} className={sortField === 'task' ? 'text-indigo-600' : ''} />
-                  </button>
-                </th>
-                <th className="px-6 py-3">
-                  <button onClick={() => toggleSort('project')} className="flex items-center gap-1 hover:text-slate-700">
-                    Projekt
-                    <ArrowUpDown size={14} className={sortField === 'project' ? 'text-indigo-600' : ''} />
-                  </button>
-                </th>
-                <th className="px-6 py-3">
-                  <button onClick={() => toggleSort('duration')} className="flex items-center gap-1 hover:text-slate-700">
-                    Czas trwania
-                    <ArrowUpDown size={14} className={sortField === 'duration' ? 'text-indigo-600' : ''} />
-                  </button>
-                </th>
-                <th className="px-6 py-3 text-right">Akcje</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {getSortedFilteredEntries().slice(0, 5).map(entry => (
-                <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-900">{entry.task}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${entry.color.replace('bg-', 'bg-').replace('-500', '-50')} ${entry.color.replace('bg-', 'text-').replace('-500', '-700')}`}>
-                      {entry.project}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">{entry.startTime} - {entry.endTime} ({entry.duration})</td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => openModal('edit-time-entry', entry)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => confirmDelete('time-entry', entry.id, entry.task)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors ml-1"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
-  // Render My Time - Calendar (UC-04)
-  const renderMyTime = () => {
-    const days = getDaysInMonth(currentMonth);
-    const weekDays = ['Pon', 'Wt', 'Sr', 'Czw', 'Pt', 'Sob', 'Ndz'];
-
-    return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Moj Czas</h1>
-            <p className="text-slate-500 mt-1">Przegladaj i zarzadzaj swoimi wpisami czasu pracy.</p>
-          </div>
-          <button 
-            onClick={() => openModal('add-time-entry')}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-          >
-            <Plus size={18} />
-            Dodaj wpis
-          </button>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Ten miesiac</h3>
-            <div className="text-2xl font-bold text-slate-900 mt-1">0h 00m</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Ten tydzien</h3>
-            <div className="text-2xl font-bold text-slate-900 mt-1">0h 00m</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Srednia dzienna</h3>
-            <div className="text-2xl font-bold text-slate-900 mt-1">0h 00m</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Dni robocze</h3>
-            <div className="text-2xl font-bold text-slate-900 mt-1">0 / 0</div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3">
-            {/* Calendar */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900 capitalize">{formatMonth(currentMonth)}</h2>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <ChevronLeft size={20} className="text-slate-600" />
-              </button>
-              <button 
-                onClick={() => setCurrentMonth(new Date())}
-                className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-              >
-                Dzisiaj
-              </button>
-              <button 
-                onClick={() => navigateMonth('next')}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <ChevronRight size={20} className="text-slate-600" />
-              </button>
-            </div>
-          </div>
-
-          {/* Week days header */}
-          <div className="grid grid-cols-7 border-b border-slate-200">
-            {weekDays.map(day => (
-              <div key={day} className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7">
-            {days.map((day, index) => {
-              const entries = day ? getEntriesForDay(day) : [];
-              const isWeekend = index % 7 >= 5;
-              const today = new Date();
-              const isToday = day && 
-                today.getDate() === day && 
-                today.getMonth() === currentMonth.getMonth() && 
-                today.getFullYear() === currentMonth.getFullYear();
-              
-              return (
-                <div 
-                  key={index} 
-                  className={`min-h-28 border-b border-r border-slate-100 p-2 ${
-                    isWeekend ? 'bg-slate-50/50' : 'bg-white'
-                  } ${isToday ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
-                >
-                  {day && (
-                    <>
-                      <div className={`text-sm font-medium mb-1 ${
-                        isToday ? 'text-indigo-600 font-bold' : 'text-slate-700'
-                      }`}>
-                        {day}
-                      </div>
-                      <div className="space-y-1">
-                        {entries.map(entry => (
-                          <div 
-                            key={entry.id}
-                            onClick={() => openModal('edit-time-entry', entry)}
-                            className={`${entry.color} text-white text-xs px-1.5 py-1 rounded truncate cursor-pointer hover:opacity-80 transition-opacity`}
-                            title={`${entry.task} - ${entry.duration}`}
-                          >
-                            {entry.duration} {entry.task}
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="mt-4 flex items-center gap-6 text-sm text-slate-600">
-            {visibleProjects.map(project => (
-              <div key={project.id} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded ${project.color}`}></div>
-                <span>{project.name}</span>
-              </div>
-            ))}
-          </div>
-          </div>
-          
-          <div className="lg:col-span-1">
-            {/* User Tasks Sidebar */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
-              <div className="px-5 py-4 border-b border-slate-200 bg-slate-50">
-                <h2 className="font-semibold text-slate-900">Twoje zadania</h2>
-                <p className="text-xs text-slate-500 mt-1">Szybki dostep do zadan</p>
-              </div>
-              <div className="p-4 flex-1 overflow-y-auto space-y-3">
-                {apiTasks.filter(t => t.assignedUsers?.some(u => u.id === currentUser.id)).length > 0 ? (
-                  apiTasks.filter(t => t.assignedUsers?.some(u => u.id === currentUser.id)).map(task => {
-                    const taskProject = projects.find(p => p.id === task.projectId);
-                    return (
-                      <div key={task.id} className="p-3 border border-slate-100 rounded-lg hover:border-indigo-200 hover:shadow-sm transition-all bg-white group cursor-pointer" onClick={() => {
-                          openModal('add-time-entry');
-                          setFormData({ project: task.projectId, task: task.name, taskId: task.id, date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:00' });
-                        }}>
-                        <div className="flex justify-between items-start mb-1">
-                          <h4 className="font-medium text-slate-900 text-sm leading-tight">{task.name}</h4>
-                          {getStatusIcon(statusFromApi(task.status))}
-                        </div>
-                        {taskProject && (
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <div className={`w-2 h-2 rounded-full ${taskProject.color}`}></div>
-                            <span className="text-xs text-slate-500 truncate">{taskProject.name}</span>
-                          </div>
-                        )}
-                        <div className="mt-2 flex items-center justify-between">
-                          {getStatusBadge(statusFromApi(task.status))}
-                          <button className="text-xs font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            Loguj czas
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-8 text-slate-500 text-sm">
-                    Brak zadan przypisanych do Ciebie.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render Projects (UC-02, UC-06, UC-07)
-  const renderProjects = () => {
-    const currentProject = selectedProject !== null 
-      ? projects.find(p => p.id === selectedProject) 
-      : null;
-    const isAdmin = currentUser.role === 'admin';
-
-    return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Projekty i Zadania</h1>
-            <p className="text-slate-500 mt-1">
-              {isAdmin ? 'Tworzenie i zarzadzanie projektami oraz zadaniami.' : 'Przegladaj przypisane projekty i zadania.'}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => refreshProjects()}
-              disabled={projectsLoading}
-              className="flex items-center gap-2 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
-              title="Odswiez liste projektow z API"
-            >
-              <RefreshCw size={16} className={projectsLoading ? 'animate-spin' : ''} />
-              Odswiez
-            </button>
-            {isAdmin && (
-              <button 
-                onClick={() => openModal('add-project')}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-              >
-                <Plus size={18} />
-                Nowy projekt
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Projects list */}
-          <div className="lg:col-span-1 space-y-4">
-            {visibleProjects.map(project => (
-              <div 
-                key={project.id}
-                onClick={() => setSelectedProject(project.id)}
-                className={`bg-white rounded-xl border shadow-sm p-5 cursor-pointer transition-all ${
-                  selectedProject === project.id 
-                    ? 'border-indigo-500 ring-1 ring-indigo-500' 
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${project.color}`}></div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{project.name}</h3>
-                      <p className="text-xs text-slate-500">{project.client}</p>
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <div className="relative group">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); }}
-                        className="p-1 text-slate-400 hover:text-slate-600"
-                      >
-                        <MoreHorizontal size={18} />
-                      </button>
-                      <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); openModal('edit-project', project); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <Edit2 size={14} />
-                          Edytuj
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); confirmDelete('project', project.id, project.name); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
-                        >
-                          <Trash2 size={14} />
-                          Usun
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Progress bar */}
-                <div className="mb-3">
-                  <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>Postep</span>
-                    <span>{project.progress}%</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${project.color} transition-all`}
-                      style={{ width: `${project.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <Clock size={14} />
-                    <span>{project.loggedHours}h / {project.totalHours}h</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-slate-500">{apiTasks.filter(t => t.projectId === project.id).length} zadan</span>
-                  </div>
-                </div>
-
-                {/* Team members avatars */}
-                <div className="flex items-center mt-3 pt-3 border-t border-slate-100">
-                  <div className="flex -space-x-2">
-                    {project.teamMembers.slice(0, 4).map(memberId => {
-                      const member = users.find(u => u.id === memberId);
-                      return member ? (
-                        <div 
-                          key={memberId}
-                          className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold border-2 border-white"
-                          title={member.name}
-                        >
-                          {member.initials}
-                        </div>
-                      ) : null;
-                    })}
-                    {project.teamMembers.length > 4 && (
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-xs font-bold border-2 border-white">
-                        +{project.teamMembers.length - 4}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Tasks panel */}
-          <div className="lg:col-span-2">
-            {currentProject ? (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${currentProject.color}`}></div>
-                    <div>
-                      <h2 className="font-semibold text-slate-900">{currentProject.name}</h2>
-                      <p className="text-xs text-slate-500">{currentProject.client}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => refreshTasks()}
-                      disabled={tasksLoading}
-                      className="flex items-center gap-2 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
-                      title="Odswiez liste zadan z API"
-                    >
-                      <RefreshCw size={14} className={tasksLoading ? 'animate-spin' : ''} />
-                    </button>
-                    {isAdmin && (
-                      <>
-                        <button 
-                          onClick={() => openModal('assign-employee')}
-                          className="flex items-center gap-2 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-                        >
-                          <UserPlus size={16} />
-                          Przypisz
-                        </button>
-                        <button 
-                          onClick={() => openModal('add-task')}
-                          className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors"
-                        >
-                          <Plus size={16} />
-                          Dodaj zadanie
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tasks list */}
-                <div className="divide-y divide-slate-100">
-                  {tasksLoading && selectedProjectTasks.length === 0 ? (
-                    <div className="px-6 py-8 text-center">
-                      <Loader2 size={24} className="animate-spin mx-auto text-slate-400 mb-2" />
-                      <p className="text-sm text-slate-500">Ladowanie zadan...</p>
-                    </div>
-                  ) : selectedProjectTasks.length === 0 ? (
-                    <div className="px-6 py-8 text-center">
-                      <p className="text-sm text-slate-500">Brak zadan w tym projekcie.</p>
-                    </div>
-                  ) : (
-                    selectedProjectTasks.map(task => (
-                      <div key={task.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          {getStatusIcon(statusFromApi(task.status))}
-                          <div>
-                            <h4 className="font-medium text-slate-900">{task.name}</h4>
-                            <div className="flex items-center gap-3 mt-1">
-                              {getStatusBadge(statusFromApi(task.status))}
-                              {task.description && (
-                                <span className="text-xs text-slate-500">{task.description}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {task.assignedUsers && task.assignedUsers.length > 0 && (
-                            <div className="flex -space-x-1">
-                              {task.assignedUsers.slice(0, 3).map(au => (
-                                <div 
-                                  key={au.id}
-                                  className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 border-2 border-white"
-                                  title={au.username}
-                                >
-                                  {au.username.slice(0, 2).toUpperCase()}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {statusFromApi(task.status) !== 'completed' && (
-                            <button 
-                              onClick={() => {
-                                setIsTimerRunning(true);
-                                setTimerSeconds(0);
-                              }}
-                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                              title="Rozpocznij timer"
-                            >
-                              <Play size={16} />
-                            </button>
-                          )}
-                          {isAdmin && (
-                            <>
-                              <button 
-                                onClick={() => openModal('add-task', {
-                                  ...task,
-                                  status: statusFromApi(task.status),
-                                  assigneeId: task.assignedUsers?.[0]?.id || '',
-                                })}
-                                className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button 
-                                onClick={() => confirmDelete('task', task.id!, task.name)}
-                                className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Project stats footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
-                  <div className="grid grid-cols-4 gap-4 text-center">
-                    <div>
-                      <div className="text-lg font-bold text-slate-900">{selectedProjectTasks.length}</div>
-                      <div className="text-xs text-slate-500">Wszystkie</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-emerald-600">
-                        {selectedProjectTasks.filter(t => t.status === 'DONE').length}
-                      </div>
-                      <div className="text-xs text-slate-500">Ukonczone</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-amber-600">
-                        {selectedProjectTasks.filter(t => t.status === 'IN_PROGRESS').length}
-                      </div>
-                      <div className="text-xs text-slate-500">W trakcie</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-slate-400">
-                        {selectedProjectTasks.filter(t => t.status === 'TODO').length}
-                      </div>
-                      <div className="text-xs text-slate-500">Do zrobienia</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
-                <FolderKanban size={48} className="mx-auto text-slate-300 mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Wybierz projekt</h3>
-                <p className="text-slate-500">Kliknij na projekt po lewej stronie, aby zobaczyc jego zadania.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render Reports (UC-09, UC-10)
-  const renderReports = () => {
-    const isAdmin = currentUser.role === 'admin';
-
-    return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Raporty Systemowe</h1>
-            <p className="text-slate-500 mt-1">Generuj i przegladaj raporty czasu pracy.</p>
-          </div>
-          {isAdmin && (
-            <button 
-              onClick={() => openModal('generate-report')}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-            >
-              <Plus size={18} />
-              Generuj raport
-            </button>
-          )}
-        </div>
-
-        {/* Quick stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText size={20} className="text-blue-600" />
-              </div>
-              <span className="text-sm font-medium text-slate-500">Raporty dzienne</span>
-            </div>
-            <div className="text-2xl font-bold text-slate-900">{reports.filter(r => r.type === 'daily').length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <FileText size={20} className="text-emerald-600" />
-              </div>
-              <span className="text-sm font-medium text-slate-500">Raporty tygodniowe</span>
-            </div>
-            <div className="text-2xl font-bold text-slate-900">{reports.filter(r => r.type === 'weekly').length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <FileText size={20} className="text-amber-600" />
-              </div>
-              <span className="text-sm font-medium text-slate-500">Raporty miesieczne</span>
-            </div>
-            <div className="text-2xl font-bold text-slate-900">{reports.filter(r => r.type === 'monthly').length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <BarChart3 size={20} className="text-purple-600" />
-              </div>
-              <span className="text-sm font-medium text-slate-500">Laczny czas</span>
-            </div>
-            <div className="text-2xl font-bold text-slate-900">0h</div>
-          </div>
-        </div>
-
-        {/* Reports list */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200">
-            <h2 className="font-semibold text-slate-900">Historia raportow</h2>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {reports.map(report => (
-              <div key={report.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-lg ${
-                    report.type === 'daily' ? 'bg-blue-100' : 
-                    report.type === 'weekly' ? 'bg-emerald-100' : 'bg-amber-100'
-                  }`}>
-                    <FileText size={20} className={
-                      report.type === 'daily' ? 'text-blue-600' : 
-                      report.type === 'weekly' ? 'text-emerald-600' : 'text-amber-600'
-                    } />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-slate-900">{report.name}</h4>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
-                      <span>{report.dateRange}</span>
-                      <span>|</span>
-                      <span>Wygenerowano: {report.generatedAt}</span>
-                      <span>|</span>
-                      <span>Przez: {report.generatedBy}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => { setEditingItem(report); setActiveModal('view-report'); }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    <Eye size={16} />
-                    Podglad
-                  </button>
-                  <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                    <Download size={16} />
-                    Pobierz
-                  </button>
-                  {isAdmin && (
-                    <button 
-                      onClick={() => confirmDelete('report', report.id, report.name)}
-                      className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render Team Management (UC-11)
-  const renderTeam = () => {
-    const isAdmin = currentUser.role === 'admin';
-
-    return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Zarzadzanie Zespolem</h1>
-            <p className="text-slate-500 mt-1">Zarzadzaj uzytkownikami, rolami i zespolami.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => refreshUsers()}
-              disabled={usersLoading}
-              className="flex items-center gap-2 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
-              title="Odswiez liste uzytkownikow z API"
-            >
-              <RefreshCw size={16} className={usersLoading ? 'animate-spin' : ''} />
-              Odswiez
-            </button>
-            {isAdmin && (
-              <button 
-                onClick={() => openModal('add-user')}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-              >
-                <UserPlus size={18} />
-                Dodaj uzytkownika
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Team stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Wszyscy uzytkownicy</h3>
-            <div className="text-2xl font-bold text-slate-900">{users.length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Administratorzy</h3>
-            <div className="text-2xl font-bold text-slate-900">{users.filter(u => u.role === 'admin').length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Pracownicy</h3>
-            <div className="text-2xl font-bold text-slate-900">{users.filter(u => u.role === 'employee').length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Zespoly</h3>
-            <div className="text-2xl font-bold text-slate-900">{teams.length}</div>
-          </div>
-        </div>
-
-        {/* Users list */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Lista uzytkownikow</h2>
-            <div className="flex items-center gap-2">
-              <select className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="all">Wszystkie zespoly</option>
-                {teams.map(team => (
-                  <option key={team} value={team}>{team}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 font-medium">
-              <tr>
-                <th className="px-6 py-3">Uzytkownik</th>
-                <th className="px-6 py-3">Email</th>
-                <th className="px-6 py-3">Zespol</th>
-                <th className="px-6 py-3">Rola</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3 text-right">Akcje</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.map(user => (
-                <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm">
-                          {user.initials}
-                        </div>
-                        {user.activeTimer && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
-                        )}
-                      </div>
-                      <span className="font-medium text-slate-900">{user.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">{user.email}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-md">
-                      {user.team}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      user.role === 'admin' 
-                        ? 'bg-purple-100 text-purple-700' 
-                        : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {user.role === 'admin' ? 'Administrator' : 'Pracownik'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {user.activeTimer ? (
-                      <span className="flex items-center gap-1.5 text-emerald-600 text-sm">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                        Aktywny
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 text-sm">Nieaktywny</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {isAdmin && user.id !== currentUser.id && (
-                      <>
-                        <button 
-                          onClick={() => openModal('add-user', user)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => confirmDelete('user', user.id, user.name)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors ml-1"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
+  // Inject current user's active timer into the users array so it shows up in views
+  const usersWithActiveTimer = users.map(u => 
+    u.id === currentUser.id && isTimerRunning && activeTimerTask 
+      ? { ...u, activeTimer: { task: activeTimerTask.name, project: activeTimerTask.projectName, startTime: new Date(Date.now() - timerSeconds * 1000) } } 
+      : u
+  );
 
   const renderContent = () => {
     switch (currentView) {
       case 'my-time':
-        return renderMyTime();
+        return (
+          <MyTimeView
+            currentUser={currentUser}
+            users={usersWithActiveTimer}
+            timeEntries={timeEntries}
+            projects={projects}
+            visibleProjects={visibleProjects}
+            apiTasks={apiTasks}
+            currentMonth={currentMonth}
+            setCurrentMonth={setCurrentMonth}
+            getDaysInMonth={getDaysInMonth}
+            openModal={openModal}
+            formatMonth={formatMonth}
+            filterProject={filterProject}
+            setFilterProject={setFilterProject}
+            navigateMonth={navigateMonth}
+            getEntriesForDay={getEntriesForDay}
+            setFormData={setFormData}
+            getStatusIcon={getStatusIcon}
+            statusFromApi={statusFromApi}
+            getStatusBadge={getStatusBadge}
+          />
+        );
       case 'projects':
-        return renderProjects();
+        return (
+          <ProjectsView
+            currentUser={currentUser}
+            users={usersWithActiveTimer}
+            projects={projects}
+            visibleProjects={visibleProjects}
+            selectedProject={selectedProject}
+            setSelectedProject={setSelectedProject}
+            projectsLoading={projectsLoading}
+            refreshProjects={refreshProjects}
+            openModal={openModal}
+            confirmDelete={confirmDelete}
+            apiTasks={apiTasks}
+            tasksLoading={tasksLoading}
+            refreshTasks={refreshTasks}
+            getStatusIcon={getStatusIcon}
+            statusFromApi={statusFromApi}
+            getStatusBadge={getStatusBadge}
+            setIsTimerRunning={setIsTimerRunning}
+            setTimerSeconds={setTimerSeconds}
+            setActiveTimerTask={setActiveTimerTask}
+          />
+        );
       case 'reports':
-        return renderReports();
+        return (
+          <ReportsView
+            currentUser={currentUser}
+            reports={reports}
+            openModal={openModal}
+            setEditingItem={setEditingItem}
+            setActiveModal={setActiveModal}
+            confirmDelete={confirmDelete}
+          />
+        );
       case 'team':
-        return renderTeam();
+        return (
+          <TeamView
+            currentUser={currentUser}
+            users={usersWithActiveTimer}
+            usersLoading={usersLoading}
+            refreshUsers={refreshUsers}
+            openModal={openModal}
+            confirmDelete={confirmDelete}
+          />
+        );
       default:
-        return renderDashboard();
+        return (
+          <DashboardView
+            currentUser={currentUser}
+            users={usersWithActiveTimer}
+            timeEntries={timeEntries}
+            visibleProjects={visibleProjects}
+            openModal={openModal}
+            formatTimer={formatTimer}
+            showFilters={showFilters}
+            setShowFilters={setShowFilters}
+            filterProject={filterProject}
+            setFilterProject={setFilterProject}
+            projects={projects}
+            filterDateFrom={filterDateFrom}
+            setFilterDateFrom={setFilterDateFrom}
+            filterDateTo={filterDateTo}
+            setFilterDateTo={setFilterDateTo}
+            toggleSort={toggleSort}
+            sortField={sortField}
+            getSortedFilteredEntries={getSortedFilteredEntries}
+            confirmDelete={confirmDelete}
+          />
+        );
     }
   };
 
@@ -1827,758 +1192,104 @@ export default function TimeTrackingLayout({
         case 'add-time-entry':
         case 'edit-time-entry':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">
-                {editingItem ? 'Edytuj wpis czasu' : 'Dodaj wpis czasu'}
-              </h2>
-              
-              {formErrors.overlap && (
-                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-rose-700 text-sm">
-                  <AlertTriangle size={18} />
-                  {formErrors.overlap}
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Projekt *</label>
-                  <select 
-                    value={formData.project || formData.projectId || ''}
-                    onChange={(e) => {
-                      setFormData({ 
-                        ...formData, 
-                        project: e.target.value,
-                        task: '' // Clear task if project changes
-                      });
-                    }}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.project ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                  >
-                    <option value="">Wybierz projekt</option>
-                    {visibleProjects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                  {formErrors.project && <p className="text-rose-500 text-xs mt-1">{formErrors.project}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Zadanie *</label>
-                  {userTasksForSelectedProject.length > 0 ? (
-                    <select
-                      value={formData.task || ''}
-                      onChange={(e) => {
-                        const selectedTask = userTasksForSelectedProject.find(t => t.name === e.target.value);
-                        setFormData({ 
-                          ...formData, 
-                          task: e.target.value,
-                          taskId: selectedTask?.id || 0
-                        });
-                      }}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.task ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                    >
-                      <option value="">Wybierz zadanie</option>
-                      {userTasksForSelectedProject.map(t => (
-                        <option key={t.id} value={t.name}>{t.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input 
-                      type="text"
-                      value={formData.task || ''}
-                      onChange={(e) => setFormData({ ...formData, task: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.task ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                      placeholder={formData.project ? "Brak przypisanych zadań - wpisz ręcznie" : "Najpierw wybierz projekt"}
-                      disabled={!formData.project}
-                    />
-                  )}
-                  {formErrors.task && <p className="text-rose-500 text-xs mt-1">{formErrors.task}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Data *</label>
-                  <input 
-                    type="date"
-                    value={formData.date || ''}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.date ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                  />
-                  {formErrors.date && <p className="text-rose-500 text-xs mt-1">{formErrors.date}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Czas rozpoczecia *</label>
-                    <input 
-                      type="time"
-                      value={formData.startTime || ''}
-                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.startTime ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                    />
-                    {formErrors.startTime && <p className="text-rose-500 text-xs mt-1">{formErrors.startTime}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Czas zakonczenia *</label>
-                    <input 
-                      type="time"
-                      value={formData.endTime || ''}
-                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.endTime ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                    />
-                    {formErrors.endTime && <p className="text-rose-500 text-xs mt-1">{formErrors.endTime}</p>}
-                  </div>
-                </div>
-
-                {formData.startTime && formData.endTime && formData.startTime < formData.endTime && (
-                  <div className="p-3 bg-indigo-50 rounded-lg">
-                    <span className="text-sm text-indigo-700 font-medium">
-                      Czas trwania: {calculateDuration(formData.startTime, formData.endTime)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleSaveTimeEntry}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  {editingItem ? 'Zapisz zmiany' : 'Dodaj wpis'}
-                </button>
-              </div>
-            </>
+            <TimeEntryModal
+              editingItem={editingItem}
+              formErrors={formErrors}
+              formData={formData}
+              setFormData={setFormData}
+              visibleProjects={visibleProjects}
+              userTasksForSelectedProject={userTasksForSelectedProject}
+              calculateDuration={calculateDuration}
+              closeModal={closeModal}
+              handleSaveTimeEntry={handleSaveTimeEntry}
+            />
           );
-
         case 'add-project':
         case 'edit-project':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">
-                {editingItem ? 'Edytuj projekt' : 'Nowy projekt'}
-              </h2>
-
-              {/* API Error Alert */}
-              {apiError && (
-                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
-                  <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
-                  <p className="text-sm text-rose-700">{apiError}</p>
-                  <button onClick={() => setApiError(null)} className="ml-auto p-1 hover:bg-rose-100 rounded">
-                    <X size={14} className="text-rose-500" />
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa projektu *</label>
-                  <input 
-                    type="text"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.name ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                    placeholder="Nazwa projektu"
-                    disabled={apiLoading}
-                  />
-                  {formErrors.name && <p className="text-rose-500 text-xs mt-1">{formErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Opis / Klient</label>
-                  <input 
-                    type="text"
-                    value={formData.client || formData.description || ''}
-                    onChange={(e) => setFormData({ ...formData, client: e.target.value, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Opis lub nazwa klienta"
-                    disabled={apiLoading}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Data rozpoczecia</label>
-                    <input 
-                      type="date"
-                      value={formData.startDate || ''}
-                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      disabled={apiLoading}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Data zakonczenia</label>
-                    <input 
-                      type="date"
-                      value={formData.endDate || ''}
-                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formData.startDate && formData.endDate && formData.endDate < formData.startDate 
-                          ? 'border-rose-500' 
-                          : 'border-slate-200'
-                      }`}
-                      disabled={apiLoading}
-                    />
-                    {formData.startDate && formData.endDate && formData.endDate < formData.startDate && (
-                      <p className="text-rose-500 text-xs mt-1">Data zakonczenia musi byc po dacie rozpoczecia</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Kolor projektu</label>
-                  <div className="flex gap-2">
-                    {['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'].map(color => (
-                      <button
-                        key={color}
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={`w-8 h-8 rounded-full ${color} ${formData.color === color ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
-                        disabled={apiLoading}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Planowane godziny</label>
-                  <input 
-                    type="number"
-                    value={formData.totalHours || 40}
-                    onChange={(e) => setFormData({ ...formData, totalHours: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    min="1"
-                    disabled={apiLoading}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                  <select 
-                    value={formData.status || 'active'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    disabled={apiLoading}
-                  >
-                    <option value="active">Aktywny (IN_PROGRESS)</option>
-                    <option value="on-hold">Wstrzymany (ON_HOLD)</option>
-                    <option value="completed">Ukonczony (COMPLETED)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* API Info */}
-              <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-500">
-                  <span className="font-medium">Endpoint:</span> {editingItem ? `PUT /api/projects/${editingItem.id}` : 'POST /api/projects'}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  disabled={apiLoading}
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleSaveProject}
-                  disabled={apiLoading || (formData.startDate && formData.endDate && formData.endDate < formData.startDate)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
-                  {editingItem ? 'Zapisz zmiany' : 'Utworz projekt'}
-                </button>
-              </div>
-            </>
+            <ProjectModal
+              editingItem={editingItem}
+              apiError={apiError}
+              setApiError={setApiError}
+              formData={formData}
+              setFormData={setFormData}
+              formErrors={formErrors}
+              apiLoading={apiLoading}
+              closeModal={closeModal}
+              handleSaveProject={handleSaveProject}
+            />
           );
-
         case 'add-task':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">
-                {editingItem ? 'Edytuj zadanie' : 'Nowe zadanie'}
-              </h2>
-
-              {/* API Error Alert */}
-              {apiError && (
-                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
-                  <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
-                  <p className="text-sm text-rose-700">{apiError}</p>
-                  <button onClick={() => setApiError(null)} className="ml-auto p-1 hover:bg-rose-100 rounded">
-                    <X size={14} className="text-rose-500" />
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa zadania *</label>
-                  <input 
-                    type="text"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.name ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                    placeholder="Nazwa zadania"
-                    disabled={apiLoading}
-                  />
-                  {formErrors.name && <p className="text-rose-500 text-xs mt-1">{formErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Opis</label>
-                  <textarea 
-                    value={formData.description || ''}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    rows={3}
-                    placeholder="Opis zadania"
-                    disabled={apiLoading}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Przypisz do</label>
-                  <select 
-                    value={formData.assigneeId || ''}
-                    onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    disabled={apiLoading}
-                  >
-                    <option value="">Wybierz pracownika</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                  <select 
-                    value={formData.status || 'todo'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    disabled={apiLoading}
-                  >
-                    <option value="todo">Do zrobienia (TODO)</option>
-                    <option value="in-progress">W trakcie (IN_PROGRESS)</option>
-                    <option value="completed">Ukonczone (DONE)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* API Info */}
-              <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-500">
-                  <span className="font-medium">Endpoint:</span> {editingItem ? `PUT /api/tasks/${editingItem.id}` : 'POST /api/tasks'}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  disabled={apiLoading}
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleSaveTask}
-                  disabled={apiLoading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
-                  {editingItem ? 'Zapisz zmiany' : 'Dodaj zadanie'}
-                </button>
-              </div>
-            </>
+            <TaskModal
+              editingItem={editingItem}
+              apiError={apiError}
+              setApiError={setApiError}
+              formData={formData}
+              setFormData={setFormData}
+              formErrors={formErrors}
+              apiLoading={apiLoading}
+              users={users}
+              closeModal={closeModal}
+              handleSaveTask={handleSaveTask}
+            />
           );
-
         case 'assign-employee':
-          const currentProjectData = projects.find(p => p.id === selectedProject);
-          const availableUsers = users.filter(u => !currentProjectData?.teamMembers.includes(u.id));
-
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">Przypisz pracownika do projektu</h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Wybierz pracownika</label>
-                  <select 
-                    value={formData.userId || ''}
-                    onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Wybierz pracownika</option>
-                    {availableUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.team})</option>
-                    ))}
-                  </select>
-                </div>
-
-                {currentProjectData && currentProjectData.teamMembers.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Aktualnie przypisani:</label>
-                    <div className="flex flex-wrap gap-2">
-                      {currentProjectData.teamMembers.map(memberId => {
-                        const member = users.find(u => u.id === memberId);
-                        return member ? (
-                          <span key={memberId} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-sm text-slate-700">
-                            <span className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold">
-                              {member.initials}
-                            </span>
-                            {member.name}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleAssignEmployee}
-                  disabled={!formData.userId}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Przypisz
-                </button>
-              </div>
-            </>
+            <AssignEmployeeModal
+              formData={formData}
+              setFormData={setFormData}
+              projects={projects}
+              selectedProject={selectedProject}
+              users={usersWithActiveTimer}
+              closeModal={closeModal}
+              handleAssignEmployee={handleAssignEmployee}
+            />
           );
-
         case 'add-user':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">
-                {editingItem ? 'Edytuj uzytkownika' : 'Nowy uzytkownik'}
-              </h2>
-
-              {/* API Error Alert */}
-              {apiError && (
-                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
-                  <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
-                  <p className="text-sm text-rose-700">{apiError}</p>
-                  <button onClick={() => setApiError(null)} className="ml-auto p-1 hover:bg-rose-100 rounded">
-                    <X size={14} className="text-rose-500" />
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa uzytkownika *</label>
-                  <input 
-                    type="text"
-                    value={formData.username || ''}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.username ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                    placeholder="jan_kowalski"
-                    disabled={apiLoading}
-                  />
-                  {formErrors.username && <p className="text-rose-500 text-xs mt-1">{formErrors.username}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Haslo {editingItem ? '(pozostaw puste aby nie zmieniac)' : '*'}
-                  </label>
-                  <input 
-                    type="password"
-                    value={formData.password || ''}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      formErrors.password ? 'border-rose-500' : 'border-slate-200'
-                    }`}
-                    placeholder="********"
-                    disabled={apiLoading}
-                  />
-                  {formErrors.password && <p className="text-rose-500 text-xs mt-1">{formErrors.password}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Rola</label>
-                  <select 
-                    value={formData.role || 'employee'}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    disabled={apiLoading}
-                  >
-                    <option value="employee">Pracownik (EMPLOYEE)</option>
-                    <option value="admin">Administrator (ADMIN)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* API Info */}
-              <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-500">
-                  <span className="font-medium">Endpoint:</span> {editingItem ? `PUT /api/users/${editingItem.id}` : 'POST /api/users'}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  disabled={apiLoading}
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleSaveUser}
-                  disabled={apiLoading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
-                  {editingItem ? 'Zapisz zmiany' : 'Dodaj uzytkownika'}
-                </button>
-              </div>
-            </>
+            <UserModal
+              editingItem={editingItem}
+              apiError={apiError}
+              setApiError={setApiError}
+              formData={formData}
+              setFormData={setFormData}
+              formErrors={formErrors}
+              apiLoading={apiLoading}
+              closeModal={closeModal}
+              handleSaveUser={handleSaveUser}
+            />
           );
-
         case 'generate-report':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">Generuj raport</h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Typ raportu</label>
-                  <select 
-                    value={formData.type || 'weekly'}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="daily">Dzienny</option>
-                    <option value="weekly">Tygodniowy</option>
-                    <option value="monthly">Miesieczny</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Data od *</label>
-                    <input 
-                      type="date"
-                      value={formData.dateFrom || ''}
-                      onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.dateFrom ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                    />
-                    {formErrors.dateFrom && <p className="text-rose-500 text-xs mt-1">{formErrors.dateFrom}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Data do *</label>
-                    <input 
-                      type="date"
-                      value={formData.dateTo || ''}
-                      onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        formErrors.dateTo ? 'border-rose-500' : 'border-slate-200'
-                      }`}
-                    />
-                    {formErrors.dateTo && <p className="text-rose-500 text-xs mt-1">{formErrors.dateTo}</p>}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Projekty</label>
-                  <select 
-                    value={formData.includeProjects || 'all'}
-                    onChange={(e) => setFormData({ ...formData, includeProjects: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="all">Wszystkie projekty</option>
-                    {visibleProjects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Uzytkownicy</label>
-                  <select 
-                    value={formData.includeUsers || 'all'}
-                    onChange={(e) => setFormData({ ...formData, includeUsers: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="all">Wszyscy uzytkownicy</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleGenerateReport}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  Generuj raport
-                </button>
-              </div>
-            </>
+            <GenerateReportModal
+              formData={formData}
+              setFormData={setFormData}
+              formErrors={formErrors}
+              visibleProjects={visibleProjects}
+              users={usersWithActiveTimer}
+              closeModal={closeModal}
+              handleGenerateReport={handleGenerateReport}
+            />
           );
-
         case 'view-report':
           return (
-            <>
-              <h2 className="text-xl font-bold text-slate-900 mb-6">{editingItem?.name}</h2>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-500">Zakres dat</p>
-                    <p className="font-medium text-slate-900">{editingItem?.dateRange}</p>
-                  </div>
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-500">Wygenerowano</p>
-                    <p className="font-medium text-slate-900">{editingItem?.generatedAt}</p>
-                  </div>
-                </div>
-
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-medium text-slate-600">Projekt</th>
-                        <th className="px-4 py-3 text-left font-medium text-slate-600">Godziny</th>
-                        <th className="px-4 py-3 text-left font-medium text-slate-600">Procent</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {visibleProjects.length > 0 ? visibleProjects.map(p => (
-                        <tr key={p.id}>
-                          <td className="px-4 py-3">{p.name}</td>
-                          <td className="px-4 py-3">{p.loggedHours}h</td>
-                          <td className="px-4 py-3">-</td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={3} className="px-4 py-6 text-center text-slate-400">Brak danych do wyswietlenia</td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot className="bg-slate-50 font-medium">
-                      <tr>
-                        <td className="px-4 py-3">Razem</td>
-                        <td className="px-4 py-3">{visibleProjects.reduce((sum, p) => sum + p.loggedHours, 0)}h</td>
-                        <td className="px-4 py-3">100%</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Zamknij
-                </button>
-                <button 
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  <Download size={16} />
-                  Pobierz PDF
-                </button>
-              </div>
-            </>
+            <ViewReportModal
+              editingItem={editingItem}
+              visibleProjects={visibleProjects}
+              closeModal={closeModal}
+            />
           );
-
         case 'delete-confirm':
           return (
-            <>
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle size={24} className="text-rose-600" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 mb-2">Potwierdzenie usuniecia</h2>
-                <p className="text-slate-600 mb-4">
-                  Czy na pewno chcesz usunac <strong>{deleteTarget?.name}</strong>? Tej operacji nie mozna cofnac.
-                </p>
-
-                {/* API Error Alert */}
-                {apiError && (
-                  <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-left">
-                    <AlertCircle size={16} className="text-rose-500 flex-shrink-0" />
-                    <p className="text-sm text-rose-700">{apiError}</p>
-                  </div>
-                )}
-
-                {/* API Info */}
-                {deleteTarget?.type === 'project' && (
-                  <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-left">
-                    <p className="text-xs text-slate-500">
-                      <span className="font-medium">Endpoint:</span> DELETE /api/projects/{deleteTarget?.id}
-                    </p>
-                    <p className="text-xs text-amber-600 mt-1">
-                      Uwaga: Nie mozna usunac projektu z przypisanymi zadaniami (HTTP 409)
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-center gap-3">
-                <button 
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  disabled={apiLoading}
-                >
-                  Anuluj
-                </button>
-                <button 
-                  onClick={handleDelete}
-                  disabled={apiLoading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {apiLoading && <Loader2 size={16} className="animate-spin" />}
-                  Usun
-                </button>
-              </div>
-            </>
+            <DeleteConfirmModal
+              deleteTarget={deleteTarget}
+              apiError={apiError}
+              apiLoading={apiLoading}
+              closeModal={closeModal}
+              handleDelete={handleDelete}
+            />
           );
-
         default:
           return null;
       }
@@ -2586,7 +1297,7 @@ export default function TimeTrackingLayout({
 
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className={`bg-white rounded-xl shadow-xl w-full max-h-[90vh] overflow-y-auto ${activeModal === 'view-report' ? 'max-w-4xl' : 'max-w-lg'}`}>
           <div className="p-6 relative">
             <button 
               onClick={closeModal}
@@ -2812,13 +1523,36 @@ export default function TimeTrackingLayout({
               <div className="flex items-center gap-4 bg-emerald-50 border border-emerald-200 pl-4 pr-1.5 py-1.5 rounded-full shadow-sm">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide leading-none">Aktywne zadanie</span>
-                  <span className="text-sm font-medium text-slate-800 leading-tight">Brak aktywnego zadania</span>
+                  <span className="text-sm font-medium text-slate-800 leading-tight">
+                    {activeTimerTask ? activeTimerTask.name : 'Brak aktywnego zadania'}
+                  </span>
                 </div>
                 <div className="text-lg font-mono font-bold text-emerald-600 ml-2">
                   {formatTimer(timerSeconds)}
                 </div>
                 <button 
-                  onClick={() => setIsTimerRunning(false)}
+                  onClick={() => {
+                    setIsTimerRunning(false);
+                    if (activeTimerTask) {
+                      const now = new Date();
+                      const endTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                      const start = new Date(now.getTime() - timerSeconds * 1000);
+                      const startTimeStr = `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`;
+                      
+                      setActiveModal('add-time-entry');
+                      setEditingItem(null);
+                      setFormErrors({});
+                      setFormData({
+                        date: new Date().toISOString().split('T')[0],
+                        startTime: startTimeStr,
+                        endTime: endTimeStr,
+                        taskId: activeTimerTask.id,
+                        task: activeTimerTask.name,
+                        project: activeTimerTask.projectId, // project property uses projectId in the modal select
+                      });
+                      setActiveTimerTask(null);
+                    }
+                  }}
                   className="p-1.5 bg-emerald-200 text-emerald-800 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors"
                   title="Zatrzymaj timer"
                 >
@@ -2917,3 +1651,4 @@ export default function TimeTrackingLayout({
     </div>
   );
 }
+

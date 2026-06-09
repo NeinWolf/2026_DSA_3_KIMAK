@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import TimeTrackingLayout, { User } from "@/components/time-tracking-layout";
 import LoginPage from "@/components/login-page";
 import { Loader2 } from "lucide-react";
+import { isTokenValid } from "@/lib/api";
 
 export default function Page() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -15,11 +16,17 @@ export default function Page() {
     const storedToken = localStorage.getItem('token');
     
     if (storedUser && storedToken) {
-      try {
-        const user = JSON.parse(storedUser) as User;
-        setCurrentUser(user);
-      } catch (err) {
-        // Clear invalid data
+      if (isTokenValid(storedToken)) {
+        try {
+          const user = JSON.parse(storedUser) as User;
+          setCurrentUser(user);
+        } catch (err) {
+          // Clear invalid data
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+        }
+      } else {
+        // Token is invalid/expired
         localStorage.removeItem('user');
         localStorage.removeItem('token');
       }
