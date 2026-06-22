@@ -50,4 +50,12 @@ public class TaskController {
     public void deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
     }
+
+    @PostMapping("/{taskId}/assign/{userId}")
+    public TaskResponseDTO assignUserToTask(
+            @PathVariable Long taskId,
+            @PathVariable Long userId
+    ) {
+        return taskService.assignUserToTask(taskId, userId);
+    }
 }

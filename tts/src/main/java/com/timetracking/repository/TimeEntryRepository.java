@@ -10,6 +10,10 @@ import java.util.List;
 @Repository
 public interface TimeEntryRepository extends JpaRepository<TimeEntry, Long> {
 
+    List<TimeEntry> findByUserId(Long userId);
+
+    List<TimeEntry> findByUserIdAndIsActiveTrue(Long userId);
+
     List<TimeEntry> findByUserIdAndStartTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);
 
     List<TimeEntry> findByTaskId(Long taskId);

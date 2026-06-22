@@ -85,6 +85,14 @@ public class TaskService {
         taskRepository.delete(task);
     }
 
+    public TaskResponseDTO assignUserToTask(Long taskId, Long userId) {
+        Task task = findTaskOrThrow(taskId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        task.getAssignedUsers().add(user);
+        return TaskResponseDTO.fromEntity(taskRepository.save(task));
+    }
+
     private Task findTaskOrThrow(Long id) {
         return taskRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
