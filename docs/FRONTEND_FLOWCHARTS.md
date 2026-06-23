@@ -10,28 +10,36 @@ This diagram shows how `app/page.tsx` routes between `LoginPage` and `TimeTracki
 
 ```mermaid
 graph TD
-    Start([App Initialized]) --> CheckStorage{Check localStorage<br>for token & user}
-    
-    CheckStorage -- Missing --> ShowLogin[Render LoginPage]
+    Start([App Initialized]) --> ShowSpinner[Render loading spinner<br>isRestoring = true]
+    ShowSpinner --> CheckStorage{Check localStorage<br>for token & user}
+
+    CheckStorage -- Missing --> DoneRestoring[isRestoring = false]
     CheckStorage -- Found --> ValidateToken{Is token valid?<br>isTokenValid}
-    
+
     ValidateToken -- No / Expired --> ClearStorage[Clear localStorage]
-    ClearStorage --> ShowLogin
-    
-    ValidateToken -- Yes --> RestoreSession[Set currentUser state]
-    RestoreSession --> ShowLayout[Render TimeTrackingLayout]
-    
+    ClearStorage --> DoneRestoring
+
+    ValidateToken -- Yes --> ParseUser{JSON.parse user}
+    ParseUser -- Parse error --> ClearStorage2[Clear localStorage]
+    ClearStorage2 --> DoneRestoring
+    ParseUser -- OK --> RestoreSession[Set currentUser state]
+    RestoreSession --> DoneRestoring
+
+    DoneRestoring --> RouteCheck{currentUser set?}
+    RouteCheck -- No --> ShowLogin[Render LoginPage]
+    RouteCheck -- Yes --> ShowLayout[Render TimeTrackingLayout]
+
     ShowLogin --> UserInput[User submits credentials]
     UserInput --> SendRequest[POST /api/auth/login]
-    
+
     SendRequest --> Success{API Response success?}
     Success -- No --> ShowError[Display credentials error]
     ShowError --> ShowLogin
-    
+
     Success -- Yes --> SaveStorage[Save token & user to localStorage]
     SaveStorage --> SetState[Set currentUser state]
     SetState --> ShowLayout
-    
+
     ShowLayout --> ClickLogout[User clicks Logout]
     ClickLogout --> WipeStorage[Wipe localStorage]
     WipeStorage --> ResetState[Clear currentUser state]
@@ -90,7 +98,7 @@ graph TD
 
 ## 3. Report Generation & PDF Export Flow
 
-This diagram illustrates how an Administrator queries the backend for reports and prints them to a PDF document client-side.
+This diagram illustrates how an Administrator generates reports client-side and prints them to a PDF document.
 
 ```mermaid
 graph TD
@@ -98,21 +106,27 @@ graph TD
     ClickGenerate --> OpenReportModal[Open GenerateReportModal]
     OpenReportModal --> SelectParams[Select Type, Date Range, Projects & Users]
     SelectParams --> ClickSubmit[Click 'Generuj' button]
-    
-    ClickSubmit --> SendQuery[GET /api/reports/{type} with params]
-    SendQuery --> ShowLoader[Render loading spinner]
-    
-    SendQuery --> GetResponse{API returns data?}
-    GetResponse -- Failure --> ShowError[Display query error alert]
-    ShowError --> SelectParams
-    
-    GetResponse -- Success --> SetState[Update reports list and view report modal]
-    SetState --> ShowTable[Render paginated reports data table]
-    
+
+    ClickSubmit --> FilterEntries[Filter cached timeEntries in browser<br>by date range, project & user]
+    FilterEntries --> AggregateData{Aggregate by report type}
+
+    AggregateData -- summary --> BuildSummary[Group by user:<br>totalHours, totalEntries]
+    AggregateData -- detailed --> BuildDetailed[Rows: date, user,<br>project, task, duration]
+    AggregateData -- by-project --> BuildByProject[Group by project:<br>totalHours, employeeCount]
+    AggregateData -- by-team --> BuildByTeam[Group by team:<br>totalHours, memberCount]
+
+    BuildSummary --> OpenViewModal[Open ViewReportModal<br>with generated data]
+    BuildDetailed --> OpenViewModal
+    BuildByProject --> OpenViewModal
+    BuildByTeam --> OpenViewModal
+
+    OpenViewModal --> ShowTable[Render data table]
+
     ShowTable --> ClickDownload[Click 'Pobierz PDF' button]
     ClickDownload --> GenerateDoc[Initialize jsPDF instance]
-    GenerateDoc --> FormatTable[Parse HTML/JSON rows with AutoTable]
-    FormatTable --> AddPageDecor[Inject company header, titles & footer pagination]
-    AddPageDecor --> TriggerDownload[Trigger client browser file save]
+    GenerateDoc --> StripDiacritics[Strip Polish diacritics<br>for font compatibility]
+    StripDiacritics --> FormatTable[Build AutoTable with<br>header, rows & striped theme]
+    FormatTable --> AddPageDecor[Inject title, date range & footer pagination]
+    AddPageDecor --> TriggerDownload[doc.save — trigger browser file save]
     TriggerDownload --> End([PDF Downloaded])
 ```
