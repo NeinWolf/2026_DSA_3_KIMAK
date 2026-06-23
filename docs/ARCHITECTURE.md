@@ -19,13 +19,14 @@
 │                  Controller Layer                    │
 │  AuthController  ProjectController  TaskController   │
 │  UserController  TimeEntryController ReportController│
+│  TeamController                                      │
 └───────────────────────┬─────────────────────────────┘
                         │  method calls
 ┌───────────────────────▼─────────────────────────────┐
 │                   Service Layer                      │
 │  AuthService  ProjectService   TaskService           │
 │  UserService  TimeEntryService ReportService         │
-│               JwtService                             │
+│  TeamService  JwtService                             │
 └───────────────────────┬─────────────────────────────┘
                         │  Spring Data JPA
 ┌───────────────────────▼─────────────────────────────┐
@@ -60,6 +61,7 @@ com.timetracking/
 │   ├── AuthController.java            — POST /api/auth/login
 │   ├── ProjectController.java         — /api/projects CRUD
 │   ├── TaskController.java            — /api/tasks CRUD + assign endpoint
+│   ├── TeamController.java            — /api/teams CRUD + member management
 │   ├── TimeEntryController.java       — /api/time-entries CRUD
 │   ├── UserController.java            — /api/users CRUD
 │   └── ReportController.java          — /api/reports generation
@@ -69,6 +71,7 @@ com.timetracking/
 │   ├── JwtService.java                — token generation and validation
 │   ├── ProjectService.java            — project CRUD + date validation
 │   ├── TaskService.java               — task CRUD + user assignment
+│   ├── TeamService.java               — team CRUD + member add/remove
 │   ├── TimeEntryService.java          — timer logic, overlap check, duration calc
 │   ├── UserService.java               — user CRUD + password hashing
 │   └── ReportService.java             — report aggregation and persistence
@@ -96,8 +99,10 @@ com.timetracking/
     ├── LoginRequestDTO.java
     ├── AuthResponseDTO.java
     ├── UserRequestDTO.java / UserResponseDTO.java
+    ├── UserSummaryDTO.java                        — id + username projection for team members
     ├── ProjectRequestDTO.java / ProjectResponseDTO.java
     ├── TaskRequestDTO.java / TaskResponseDTO.java
+    ├── TeamRequestDTO.java / TeamResponseDTO.java
     ├── TimeEntryRequestDTO.java / TimeEntryResponseDTO.java
     └── report/
         ├── ReportResponseDTO.java     — generic wrapper <T>

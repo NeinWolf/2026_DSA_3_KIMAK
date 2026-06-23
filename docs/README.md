@@ -26,6 +26,7 @@ Built with Spring Boot 3.4.1, secured with JWT, and backed by PostgreSQL.
 |------|----------|
 | [SETUP.md](SETUP.md) | Prerequisites, clone, start DB, run backend, troubleshooting |
 | [API_PROJECTS.md](API_PROJECTS.md) | Projects CRUD endpoints |
+| [API_TEAMS.md](API_TEAMS.md) | Teams CRUD + member management endpoints |
 | [API_TIMEENTRIES.md](API_TIMEENTRIES.md) | Time entry logging and timer endpoints |
 | [API_REPORTS.md](API_REPORTS.md) | Report generation endpoints |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package structure, layer responsibilities, DB schema |

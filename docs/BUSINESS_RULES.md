@@ -29,6 +29,32 @@ A project that still has tasks cannot be deleted.
 
 ---
 
+## Teams
+
+### Duplicate membership prevention
+A user cannot be added to a team they already belong to.
+
+- Applies to: `POST /api/teams/{teamId}/members/{userId}`
+- Condition: `team.getMembers().contains(user)`
+- Response: **409** `User is already a member of this team`
+- Resolution: no action needed — the user is already in the team.
+
+### Non-member removal prevention
+A user cannot be removed from a team they do not belong to.
+
+- Applies to: `DELETE /api/teams/{teamId}/members/{userId}`
+- Condition: `!team.getMembers().contains(user)`
+- Response: **400** `User is not a member of this team`
+
+### No delete restriction on non-empty teams
+Deleting a team succeeds regardless of whether it has members.
+Members are removed from the team but their user accounts are unaffected.
+
+- Applies to: `DELETE /api/teams/{id}`
+- Only protection: **404** `Team not found` if the ID does not exist.
+
+---
+
 ## Tasks
 
 ### Project must exist
