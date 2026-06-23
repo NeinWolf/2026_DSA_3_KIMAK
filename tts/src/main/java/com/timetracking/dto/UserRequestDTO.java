@@ -9,7 +9,6 @@ public class UserRequestDTO {
     @NotBlank
     private String username;
 
-    @NotBlank
     private String password;
 
     @NotNull

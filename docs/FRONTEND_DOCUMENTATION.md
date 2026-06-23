@@ -50,6 +50,7 @@ frontend/
 │   ├── use-projects.ts       # Projects CRUD SWR hook
 │   ├── use-reports.ts        # Reports list SWR hook
 │   ├── use-tasks.ts          # Tasks CRUD SWR hook
+│   ├── use-teams.ts          # Teams CRUD SWR hook
 │   ├── use-time-entries.ts   # Time Entries CRUD SWR hook
 │   └── use-users.ts          # Users CRUD SWR hook
 └── lib/                      # Helper libraries and API client
@@ -67,7 +68,7 @@ Instead of using physical routes for each panel, the application utilizes a unif
 - `my-time`: The monthly work log calendar.
 - `projects`: Project and task planning (Admin).
 - `reports`: Detailed query reporting and exports (Admin).
-- `team`: User list, active work status, and stopwatch monitors (Admin).
+- `team`: User list, active work status, and teams administration (Admin). Now fully integrated with the backend teams API.
 
 ### 3.2. Authentication & Session Persistence
 The authentication flow is client-driven and secured by JSON Web Tokens (JWT):
@@ -105,3 +106,11 @@ Because the backend stores dates and times as database timestamps (`LocalDateTim
 - **Request Mapping (UI -> Backend)**:
   - Combined `date` ("2026-06-22") + `startTime` ("09:00") -> `startTime: "2026-06-22T09:00:00"`
   - Combined `date` ("2026-06-22") + `endTime` ("10:30") -> `endTime: "2026-06-22T10:30:00"`
+
+### 4.3. Teams API Integration & Member Assignment
+The application is fully integrated with `/api/teams` endpoints using the custom `useTeams` SWR hook.
+- **Teams CRUD**: Admins can add and delete teams in the Split Layout of `TeamView`.
+- **Member Assignment**: Adding or updating users via `UserModal` allows choosing a team. When saving:
+  - The user's old team membership is removed by calling `DELETE /api/teams/{oldTeamId}/members/{userId}`.
+  - The user's new team membership is created by calling `POST /api/teams/{newTeamId}/members/{userId}`.
+  - All views and states automatically revalidate via SWR mutations, keeping the user-to-team mapping up to date.

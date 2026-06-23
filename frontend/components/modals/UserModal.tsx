@@ -9,13 +9,14 @@ interface UserModalProps {
   setFormData: (data: any) => void;
   formErrors: any;
   apiLoading: boolean;
+  teams: any[];
   closeModal: () => void;
   handleSaveUser: () => void;
 }
 
 export const UserModal: React.FC<UserModalProps> = ({
   editingItem, apiError, setApiError, formData, setFormData,
-  formErrors, apiLoading, closeModal, handleSaveUser
+  formErrors, apiLoading, teams, closeModal, handleSaveUser
 }) => {
   return (
     <>
@@ -77,6 +78,21 @@ export const UserModal: React.FC<UserModalProps> = ({
           >
             <option value="employee">Pracownik (EMPLOYEE)</option>
             <option value="admin">Administrator (ADMIN)</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Zespól</label>
+          <select 
+            value={formData.teamId || ''}
+            onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            disabled={apiLoading}
+          >
+            <option value="">Brak zespolu</option>
+            {teams.map(team => (
+              <option key={team.id} value={team.id}>{team.name}</option>
+            ))}
           </select>
         </div>
       </div>

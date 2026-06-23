@@ -43,6 +43,7 @@ import { useTasks } from '@/hooks/use-tasks';
 import { useUsers } from '@/hooks/use-users';
 import { useReports } from '@/hooks/use-reports';
 import { useTimeEntries } from '@/hooks/use-time-entries';
+import { useTeams } from '@/hooks/use-teams';
 import { generateReport, createTask } from '@/lib/api';
 import type { ProjectDTO, TaskDTO, TimeEntryDTO, ApiError } from '@/lib/api';
 
@@ -89,6 +90,7 @@ export interface TimeEntry {
   endTime: string;
   color: string;
   userId: number;
+  description?: string;
 }
 
 export interface Task {
@@ -205,6 +207,17 @@ export default function TimeTrackingLayout({
   } = useUsers();
 
   const {
+    teams: apiTeams,
+    isLoading: teamsLoading,
+    createTeam: apiCreateTeam,
+    updateTeam: apiUpdateTeam,
+    deleteTeam: apiDeleteTeam,
+    addTeamMember: apiAddTeamMember,
+    removeTeamMember: apiRemoveTeamMember,
+    refresh: refreshTeams
+  } = useTeams();
+
+  const {
     reports: apiReports,
     isLoading: reportsLoading,
     isError: reportsError,
@@ -229,7 +242,26 @@ export default function TimeTrackingLayout({
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
   
   // Data state
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const users = useMemo(() => {
+    if (!apiUsers || apiUsers.length === 0) {
+      return initialUsers;
+    }
+    return apiUsers.map((u) => {
+      // Find which team this user belongs to
+      const userTeam = apiTeams.find(t => t.members && t.members.some(m => m.id === u.id));
+      const teamName = userTeam ? userTeam.name : 'Brak zespołu';
+
+      return {
+        id: u.id || 0,
+        name: u.username,
+        email: `${u.username.toLowerCase()}@company.com`,
+        initials: u.username.slice(0, 2).toUpperCase(),
+        role: (u.role?.toLowerCase() || 'employee') as UserRole,
+        team: teamName,
+      };
+    });
+  }, [apiUsers, apiTeams]);
+
   const [localProjectMembers, setLocalProjectMembers] = useState<Record<number, number[]>>({});
   const [reports, setReports] = useState<Report[]>([]);
 
@@ -315,6 +347,7 @@ export default function TimeTrackingLayout({
         endTime: endStr,
         color: color,
         userId: dto.userId,
+        description: dto.description || '',
       };
     });
   }, [apiTimeEntries, apiProjects]);
@@ -345,32 +378,7 @@ export default function TimeTrackingLayout({
   const [showApiStatus, setShowApiStatus] = useState(false);
 
 
-  // Sync users from API into local state
-  useEffect(() => {
-    if (apiUsers && apiUsers.length > 0) {
-      const mapped: User[] = apiUsers.map((u) => {
-        let team = 'Zespół Frontend';
-        if (u.username.toLowerCase().includes('admin')) {
-          team = 'Zarząd';
-        } else if (u.username.toLowerCase().includes('mikolaj') || u.username.toLowerCase().includes('backend')) {
-          team = 'Zespół Backend';
-        } else if (u.username.toLowerCase().includes('oliwier') || u.username.toLowerCase().includes('frontend')) {
-          team = 'Zespół Frontend';
-        } else {
-          team = (u.id || 0) % 2 === 0 ? 'Zespół Backend' : 'Zespół Frontend';
-        }
-        return {
-          id: u.id || 0,
-          name: u.username,
-          email: `${u.username.toLowerCase()}@company.com`,
-          initials: u.username.slice(0, 2).toUpperCase(),
-          role: (u.role?.toLowerCase() || 'employee') as UserRole,
-          team: team,
-        };
-      });
-      setUsers(mapped);
-    }
-  }, [apiUsers]);
+
 
   const reportTypeFromApi = (t: string): 'summary' | 'detailed' | 'by-project' | 'by-team' => {
     switch (t) {
@@ -607,7 +615,12 @@ export default function TimeTrackingLayout({
     
     if (item) {
       if (type === 'add-user') {
-        setFormData({ ...item, username: item.name || item.username || '' });
+        const userTeam = apiTeams.find(t => t.members && t.members.some(m => m.id === item.id));
+        setFormData({ 
+          ...item, 
+          username: item.name || item.username || '', 
+          teamId: userTeam ? userTeam.id : ''
+        });
       } else {
         setFormData({ ...item });
       }
@@ -641,6 +654,7 @@ export default function TimeTrackingLayout({
           username: '',
           password: '',
           role: 'employee',
+          teamId: '',
         });
       } else if (type === 'generate-report') {
         setFormData({
@@ -876,7 +890,10 @@ export default function TimeTrackingLayout({
     };
 
     try {
+      let savedUserId: number | undefined = undefined;
+
       if (editingItem) {
+        savedUserId = editingItem.id;
         const result = await apiUpdateUser(editingItem.id, userData);
         if (!result.success) {
           setApiError(result.error?.message || 'Nie udalo sie zaktualizowac uzytkownika');
@@ -890,9 +907,29 @@ export default function TimeTrackingLayout({
           setApiLoading(false);
           return;
         }
+        savedUserId = result.data?.id;
+      }
+
+      // Handle team assignment/update
+      if (savedUserId) {
+        const previousTeam = apiTeams.find(t => t.members && t.members.some(m => m.id === savedUserId));
+        const newTeamId = formData.teamId ? Number(formData.teamId) : null;
+
+        if (newTeamId !== (previousTeam ? previousTeam.id : null)) {
+          // Remove from old team first if user belonged to one
+          if (previousTeam) {
+            await apiRemoveTeamMember(previousTeam.id, savedUserId);
+          }
+          // Add to new team if selected
+          if (newTeamId) {
+            await apiAddTeamMember(newTeamId, savedUserId);
+          }
+        }
       }
 
       setApiLoading(false);
+      refreshTeams();
+      refreshUsers();
       closeModal();
     } catch (err) {
       setApiError('Wystapil nieoczekiwany blad');
@@ -1237,6 +1274,11 @@ export default function TimeTrackingLayout({
             refreshUsers={refreshUsers}
             openModal={openModal as any}
             confirmDelete={confirmDelete}
+            teams={apiTeams}
+            teamsLoading={teamsLoading}
+            refreshTeams={refreshTeams}
+            createTeam={apiCreateTeam}
+            deleteTeam={apiDeleteTeam}
           />
         );
       default:
@@ -1339,6 +1381,7 @@ export default function TimeTrackingLayout({
               setFormData={setFormData}
               formErrors={formErrors}
               apiLoading={apiLoading}
+              teams={apiTeams}
               closeModal={closeModal}
               handleSaveUser={handleSaveUser}
             />

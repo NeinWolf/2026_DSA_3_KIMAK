@@ -34,6 +34,9 @@ public class UserService {
     }
 
     public UserResponseDTO createUser(UserRequestDTO request) {
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password cannot be empty");
+        }
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
         }
@@ -56,7 +59,9 @@ public class UserService {
                 });
 
         user.setUsername(request.getUsername());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        }
         user.setRole(request.getRole());
 
         return UserResponseDTO.fromEntity(userRepository.save(user));

@@ -16,7 +16,7 @@ export interface UseUsersReturn {
   users: UserDTO[];
   isLoading: boolean;
   error: Error | null;
-  createUser: (user: Omit<UserDTO, 'id'>) => Promise<{ success: boolean; error?: ApiError }>;
+  createUser: (user: Omit<UserDTO, 'id'>) => Promise<{ success: boolean; data?: UserDTO; error?: ApiError }>;
   updateUser: (id: number, user: Omit<UserDTO, 'id'>) => Promise<{ success: boolean; error?: ApiError }>;
   deleteUser: (id: number) => Promise<{ success: boolean; error?: ApiError }>;
   refresh: () => void;
@@ -35,11 +35,11 @@ export function useUsers(): UseUsersReturn {
 
   const handleCreateUser = async (
     user: Omit<UserDTO, 'id'>
-  ): Promise<{ success: boolean; error?: ApiError }> => {
+  ): Promise<{ success: boolean; data?: UserDTO; error?: ApiError }> => {
     const result = await apiCreateUser(user);
     if (result.error) return { success: false, error: result.error };
     await mutate();
-    return { success: true };
+    return { success: true, data: result.data };
   };
 
   const handleUpdateUser = async (

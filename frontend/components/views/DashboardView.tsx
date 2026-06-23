@@ -46,7 +46,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   confirmDelete
 }) => {
   const isAdmin = currentUser.role === 'admin';
-  const activeTimers = users.filter(u => u.activeTimer);
 
   // Helper to parse duration string 'Xh Ym' to hours float
   const parseDuration = (dur: string) => {
@@ -106,7 +105,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Stats */}
-      <div className={`grid grid-cols-1 gap-6 mb-8 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="text-sm font-medium text-slate-500 mb-1">
             {isAdmin ? 'Laczny czas zespolu (Dzisiaj)' : 'Zalogowany czas (Dzisiaj)'}
@@ -126,50 +125,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="text-3xl font-bold text-slate-900">{visibleProjects.length}</div>
           <p className="text-sm text-slate-500 mt-2">Wymagaja uwagi</p>
         </div>
-        {isAdmin && (
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 mb-1">Aktywni pracownicy</h3>
-            <div className="text-3xl font-bold text-slate-900">{activeTimers.length} / {users.length}</div>
-            <p className="text-sm text-emerald-600 mt-2 font-medium">Pracuja teraz</p>
-          </div>
-        )}
       </div>
-
-      {/* Admin: Real-time monitoring (UC-08) */}
-      {isAdmin && activeTimers.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-            <Activity size={20} className="text-emerald-500" />
-            <h2 className="font-semibold text-slate-900">Aktywne sesje pracy</h2>
-            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Na zywo</span>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {activeTimers.map(user => (
-              <div key={user.id} className="px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                      {user.initials}
-                    </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">{user.name}</p>
-                    <p className="text-sm text-slate-500">{user.team}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-slate-900">{user.activeTimer?.task}</p>
-                  <p className="text-sm text-slate-500">{user.activeTimer?.project}</p>
-                </div>
-                <div className="text-lg font-mono font-bold text-emerald-600">
-                  {formatTimer(Math.floor((Date.now() - (user.activeTimer?.startTime.getTime() || 0)) / 1000))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Time entries table with filtering */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

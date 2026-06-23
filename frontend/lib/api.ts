@@ -411,8 +411,80 @@ export async function deleteTimeEntry(id: number): Promise<{ data?: void; error?
 }
 
 // ============================================
+// TEAMS API
+// ============================================
+
+export interface UserSummaryDTO {
+  id: number;
+  username: string;
+}
+
+export interface TeamResponseDTO {
+  id: number;
+  name: string;
+  members: UserSummaryDTO[];
+}
+
+export interface TeamRequestDTO {
+  name: string;
+}
+
+export async function getTeams(): Promise<{ data?: TeamResponseDTO[]; error?: ApiError }> {
+  return apiFetch<TeamResponseDTO[]>('/teams');
+}
+
+export async function getTeam(id: number): Promise<{ data?: TeamResponseDTO; error?: ApiError }> {
+  return apiFetch<TeamResponseDTO>(`/teams/${id}`);
+}
+
+export async function createTeam(
+  team: TeamRequestDTO
+): Promise<{ data?: TeamResponseDTO; error?: ApiError }> {
+  return apiFetch<TeamResponseDTO>('/teams', {
+    method: 'POST',
+    body: JSON.stringify(team),
+  });
+}
+
+export async function updateTeam(
+  id: number,
+  team: TeamRequestDTO
+): Promise<{ data?: TeamResponseDTO; error?: ApiError }> {
+  return apiFetch<TeamResponseDTO>(`/teams/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(team),
+  });
+}
+
+export async function deleteTeam(id: number): Promise<{ data?: void; error?: ApiError }> {
+  return apiFetch<void>(`/teams/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function addTeamMember(
+  teamId: number,
+  userId: number
+): Promise<{ data?: TeamResponseDTO; error?: ApiError }> {
+  return apiFetch<TeamResponseDTO>(`/teams/${teamId}/members/${userId}`, {
+    method: 'POST',
+  });
+}
+
+export async function removeTeamMember(
+  teamId: number,
+  userId: number
+): Promise<{ data?: void; error?: ApiError }> {
+  return apiFetch<void>(`/teams/${teamId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================
 // HELPER HOOKS (for use with SWR)
 // ============================================
+
+export const teamsApiKey = '/teams';
 
 export const projectsApiKey = '/projects';
 export const projectApiKey = (id: number) => `/projects/${id}`;
