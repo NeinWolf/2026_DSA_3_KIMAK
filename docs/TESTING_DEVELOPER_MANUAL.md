@@ -74,14 +74,3 @@ When testing forms that use native HTML required attributes, fireEvent.click() w
 const form \= screen.getByPlaceholderText('Username').closest('form');  
 fireEvent.submit(form\!);
 
-## **3\. Continuous Integration (CI/CD) Notes**
-
-Currently, testing is manual. In the future, this repository will be configured with a GitHub Actions pipeline (.github/workflows/ci.yml).
-
-Once activated, all backend and frontend tests will run automatically in the cloud on every git push.
-
-**How to bypass the future pipeline:**
-
-If you are pushing a minor update (like fixing a typo in a Markdown file) and do not want to trigger a 5-minute automated test run, include the following tag anywhere in your commit message:
-
-git commit \-m "Fixed a typo in the README \[skip ci\]"  
