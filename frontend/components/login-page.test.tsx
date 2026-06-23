@@ -21,7 +21,7 @@ describe('LoginPage Component', () => {
         render(<LoginPage onLogin={mockOnLogin} />);
 
         // Search the screen for elements exactly how a user sees them
-        expect(screen.getByPlaceholderText('admin')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('test_user')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Zaloguj się/i })).toBeInTheDocument();
     });
@@ -30,7 +30,7 @@ describe('LoginPage Component', () => {
         render(<LoginPage onLogin={mockOnLogin} />);
 
         // Grab the actual form element instead of just the button
-        const form = screen.getByPlaceholderText('admin').closest('form');
+        const form = screen.getByPlaceholderText('test_user').closest('form');
 
         // Simulate a direct form submission to bypass HTML5 'required' blockers
         fireEvent.submit(form!);
@@ -49,7 +49,7 @@ describe('LoginPage Component', () => {
         render(<LoginPage onLogin={mockOnLogin} />);
 
         // Act: Simulate a user typing in their credentials
-        fireEvent.change(screen.getByPlaceholderText('admin'), { target: { value: 'natan' } });
+        fireEvent.change(screen.getByPlaceholderText('test_user'), { target: { value: 'natan' } });
         fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'password123' } });
         fireEvent.click(screen.getByRole('button', { name: /Zaloguj się/i }));
 
@@ -65,29 +65,6 @@ describe('LoginPage Component', () => {
 
             // Ensure the JWT was saved to the virtual browser storage
             expect(localStorage.getItem('token')).toBe('fake-jwt-token');
-        });
-    });
-
-    it('activates the developer bypass when the API fails but admin credentials are used', async () => {
-        // Arrange: Simulate a total backend failure (500 Internal Server Error)
-        vi.mocked(api.login).mockResolvedValue({
-            error: { status: 500, message: 'Internal Server Error' },
-        });
-
-        render(<LoginPage onLogin={mockOnLogin} />);
-
-        // Act: Type the hardcoded bypass credentials
-        fireEvent.change(screen.getByPlaceholderText('admin'), { target: { value: 'admin' } });
-        fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'admin' } });
-        fireEvent.click(screen.getByRole('button', { name: /Zaloguj się/i }));
-
-        // Assert: Verify the bypass caught the failure and logged the user in anyway
-        await waitFor(() => {
-            expect(mockOnLogin).toHaveBeenCalledWith(expect.objectContaining({
-                name: 'Administrator',
-                role: 'admin',
-            }));
-            expect(localStorage.getItem('token')).toBe('dev-bypass-token-admin');
         });
     });
 });

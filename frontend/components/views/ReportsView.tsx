@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, FileText, BarChart3, Eye, Download, Trash2 } from 'lucide-react';
 import { User, Report } from '../time-tracking-layout';
+import { downloadPdfReport } from '../../lib/pdf-helper';
 
 interface ReportsViewProps {
   currentUser: User;
@@ -111,7 +112,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <Eye size={16} />
                   Podglad
                 </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                <button 
+                  onClick={() => downloadPdfReport(report)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                >
                   <Download size={16} />
                   Pobierz
                 </button>

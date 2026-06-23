@@ -193,13 +193,6 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   {isAdmin && (
                     <>
                       <button 
-                        onClick={() => openModal('assign-employee')}
-                        className="flex items-center gap-2 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-                      >
-                        <UserPlus size={16} />
-                        Przypisz
-                      </button>
-                      <button 
                         onClick={() => openModal('add-task')}
                         className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors"
                       >

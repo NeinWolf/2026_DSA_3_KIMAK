@@ -15,7 +15,7 @@ export interface UseProjectsReturn {
   projects: ProjectDTO[];
   isLoading: boolean;
   error: Error | null;
-  createProject: (project: Omit<ProjectDTO, 'id'>) => Promise<{ success: boolean; error?: ApiError }>;
+  createProject: (project: Omit<ProjectDTO, 'id'>) => Promise<{ success: boolean; data?: ProjectDTO; error?: ApiError }>;
   updateProject: (id: number, project: Omit<ProjectDTO, 'id'>) => Promise<{ success: boolean; error?: ApiError }>;
   deleteProject: (id: number) => Promise<{ success: boolean; error?: ApiError }>;
   refresh: () => void;
@@ -37,7 +37,7 @@ export function useProjects(): UseProjectsReturn {
 
   const handleCreateProject = async (
     project: Omit<ProjectDTO, 'id'>
-  ): Promise<{ success: boolean; error?: ApiError }> => {
+  ): Promise<{ success: boolean; data?: ProjectDTO; error?: ApiError }> => {
     const result = await createProject(project);
     
     if (result.error) {
@@ -46,7 +46,7 @@ export function useProjects(): UseProjectsReturn {
     
     // Optimistically update the cache
     await mutate();
-    return { success: true };
+    return { success: true, data: result.data };
   };
 
   const handleUpdateProject = async (

@@ -21,6 +21,7 @@ Built with Spring Boot 3.4.1, secured with JWT, and backed by PostgreSQL.
 
 ## Documentation Index
 
+### Backend Documentation
 | File | Contents |
 |------|----------|
 | [SETUP.md](SETUP.md) | Prerequisites, clone, start DB, run backend, troubleshooting |
@@ -29,6 +30,14 @@ Built with Spring Boot 3.4.1, secured with JWT, and backed by PostgreSQL.
 | [API_REPORTS.md](API_REPORTS.md) | Report generation endpoints |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package structure, layer responsibilities, DB schema |
 | [BUSINESS_RULES.md](BUSINESS_RULES.md) | All validation and business logic rules |
+
+### Frontend Documentation (React / Next.js)
+| File | Contents |
+|------|----------|
+| [FRONTEND_DOCUMENTATION.md](FRONTEND_DOCUMENTATION.md) | Technical stack, directory structure, SWR & caching, mapping layer |
+| [FRONTEND_USE_CASES.md](FRONTEND_USE_CASES.md) | Full description of Employee and Admin functional use cases |
+| [FRONTEND_USER_MANUAL.md](FRONTEND_USER_MANUAL.md) | User manual and step-by-step guides for logging time and managing teams |
+| [FRONTEND_FLOWCHARTS.md](FRONTEND_FLOWCHARTS.md) | Visual Mermaid flowcharts for auth, logging, and reporting |
 
 ---
 

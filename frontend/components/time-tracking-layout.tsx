@@ -11,8 +11,6 @@ import {
   Plus, 
   Edit2, 
   Trash2, 
-  Search, 
-  Bell,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -44,8 +42,9 @@ import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useUsers } from '@/hooks/use-users';
 import { useReports } from '@/hooks/use-reports';
-import { generateReport } from '@/lib/api';
-import type { ProjectDTO, TaskDTO, ApiError } from '@/lib/api';
+import { useTimeEntries } from '@/hooks/use-time-entries';
+import { generateReport, createTask } from '@/lib/api';
+import type { ProjectDTO, TaskDTO, TimeEntryDTO, ApiError } from '@/lib/api';
 
 import { DashboardView } from './views/DashboardView';
 import { MyTimeView } from './views/MyTimeView';
@@ -165,7 +164,7 @@ const initialProjects: Project[] = [];
 // Reports - will be loaded from API when endpoint is available
 const initialReports: Report[] = [];
 
-export const teams = ['Frontend', 'Backend', 'Design', 'QA', 'DevOps'];
+export const teams = ['Zespół Frontend', 'Zespół Backend', 'Zarząd', 'Design', 'QA', 'DevOps'];
 
 export default function TimeTrackingLayout({ 
   currentUser, 
@@ -174,6 +173,53 @@ export default function TimeTrackingLayout({
   currentUser: User; 
   onLogout: () => void; 
 }) {
+  // API Integration hooks first so raw data is available
+  const { 
+    projects: apiProjects, 
+    isLoading: projectsLoading, 
+    error: projectsError,
+    createProject: apiCreateProject,
+    updateProject: apiUpdateProject,
+    deleteProject: apiDeleteProject,
+    refresh: refreshProjects
+  } = useProjects();
+
+  const {
+    tasks: apiTasks,
+    isLoading: tasksLoading,
+    error: tasksError,
+    createTask: apiCreateTask,
+    updateTask: apiUpdateTask,
+    deleteTask: apiDeleteTask,
+    refresh: refreshTasks
+  } = useTasks();
+
+  const {
+    users: apiUsers,
+    isLoading: usersLoading,
+    error: usersError,
+    createUser: apiCreateUser,
+    updateUser: apiUpdateUser,
+    deleteUser: apiDeleteUser,
+    refresh: refreshUsers
+  } = useUsers();
+
+  const {
+    reports: apiReports,
+    isLoading: reportsLoading,
+    isError: reportsError,
+    refreshReports
+  } = useReports();
+
+  const {
+    timeEntries: apiTimeEntries,
+    isLoading: timeEntriesLoading,
+    createTimeEntry: apiCreateTimeEntry,
+    updateTimeEntry: apiUpdateTimeEntry,
+    deleteTimeEntry: apiDeleteTimeEntry,
+    refresh: refreshTimeEntries
+  } = useTimeEntries(currentUser.id, currentUser.role);
+
   // Core state
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -184,31 +230,94 @@ export default function TimeTrackingLayout({
   
   // Data state
   const [users, setUsers] = useState<User[]>(initialUsers);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(initialTimeEntries);
-  const [isTimeEntriesLoaded, setIsTimeEntriesLoaded] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('timeEntries');
-      if (stored) {
-        try {
-          setTimeEntries(JSON.parse(stored));
-        } catch (e) {
-          console.error('Failed to parse timeEntries from localStorage', e);
-        }
-      }
-      setIsTimeEntriesLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isTimeEntriesLoaded && typeof window !== 'undefined') {
-      localStorage.setItem('timeEntries', JSON.stringify(timeEntries));
-    }
-  }, [timeEntries, isTimeEntriesLoaded]);
-
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [localProjectMembers, setLocalProjectMembers] = useState<Record<number, number[]>>({});
   const [reports, setReports] = useState<Report[]>([]);
+
+  // Deriving projects from apiProjects, apiTimeEntries and apiTasks
+  const projects = useMemo(() => {
+    if (!apiProjects || apiProjects.length === 0) {
+      return initialProjects;
+    }
+    const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'];
+    
+    let projectHours: Record<number, number> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const projectHoursStr = localStorage.getItem('projectTotalHours');
+        if (projectHoursStr) {
+          projectHours = JSON.parse(projectHoursStr);
+        }
+      } catch (e) {}
+    }
+
+    return apiProjects.map((p, index) => {
+      const projId = p.id || index + 1;
+      const totalH = projectHours[projId] || 40;
+
+      let loggedHours = 0;
+      apiTimeEntries.filter(te => te.projectId === projId).forEach(te => {
+        if (te.durationMinutes !== null && te.durationMinutes !== undefined) {
+          loggedHours += te.durationMinutes / 60;
+        }
+      });
+
+      const progress = totalH > 0 ? Math.min(100, Math.round((loggedHours / totalH) * 100)) : 0;
+
+      const projectTaskUsers = apiTasks
+        .filter(t => t.projectId === projId)
+        .flatMap(t => t.assignedUsers || [])
+        .map(u => u.id);
+      const manualUsers = localProjectMembers[projId] || [];
+      const uniqueMemberIds = Array.from(new Set([...projectTaskUsers, ...manualUsers]));
+
+      return {
+        id: projId,
+        name: p.name,
+        client: p.description || '',
+        color: colors[index % colors.length],
+        progress,
+        totalHours: totalH,
+        loggedHours: Math.round(loggedHours * 10) / 10,
+        tasks: [],
+        teamMembers: uniqueMemberIds,
+      };
+    });
+  }, [apiProjects, apiTimeEntries, apiTasks, localProjectMembers]);
+
+  // Deriving timeEntries from apiTimeEntries and apiProjects
+  const timeEntries: TimeEntry[] = useMemo(() => {
+    return apiTimeEntries.map((dto) => {
+      const datePart = dto.startTime.split('T')[0] || '';
+      const startStr = dto.startTime.split('T')[1]?.substring(0, 5) || '00:00';
+      const endStr = dto.endTime ? (dto.endTime.split('T')[1]?.substring(0, 5) || '') : '';
+      
+      const formatDuration = (minutes: number | null | undefined) => {
+        if (minutes === null || minutes === undefined) return "0h 00m";
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return `${h}h ${m.toString().padStart(2, '0')}m`;
+      };
+      
+      const project = apiProjects.find(p => p.id === dto.projectId);
+      const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'];
+      const projectIndex = apiProjects.findIndex(p => p.id === dto.projectId);
+      const color = projectIndex !== -1 ? colors[projectIndex % colors.length] : 'bg-slate-500';
+
+      return {
+        id: dto.id || 0,
+        date: datePart,
+        task: dto.taskName || '',
+        taskId: dto.taskId,
+        project: dto.projectName || project?.name || '',
+        projectId: dto.projectId || 0,
+        duration: formatDuration(dto.durationMinutes),
+        startTime: startStr,
+        endTime: endStr,
+        color: color,
+        userId: dto.userId,
+      };
+    });
+  }, [apiTimeEntries, apiProjects]);
   
   // Modal state
   const [activeModal, setActiveModal] = useState<ModalType>('none');
@@ -227,10 +336,6 @@ export default function TimeTrackingLayout({
   const [formData, setFormData] = useState<any>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
-  // Notifications
-  // Notifications - will be loaded from API when endpoint is available
-  const [notifications, setNotifications] = useState<{ id: number; message: string; time: string; read: boolean }[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   // API Integration state
@@ -238,107 +343,44 @@ export default function TimeTrackingLayout({
   const [apiError, setApiError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [showApiStatus, setShowApiStatus] = useState(false);
-  
-  // Use the API hook for projects
-  const { 
-    projects: apiProjects, 
-    isLoading: projectsLoading, 
-    error: projectsError,
-    createProject: apiCreateProject,
-    updateProject: apiUpdateProject,
-    deleteProject: apiDeleteProject,
-    refresh: refreshProjects
-  } = useProjects();
 
-  // Use the API hook for tasks
-  const {
-    tasks: apiTasks,
-    isLoading: tasksLoading,
-    error: tasksError,
-    createTask: apiCreateTask,
-    updateTask: apiUpdateTask,
-    deleteTask: apiDeleteTask,
-    refresh: refreshTasks
-  } = useTasks();
-
-  // Use the API hook for users
-  const {
-    users: apiUsers,
-    isLoading: usersLoading,
-    error: usersError,
-    createUser: apiCreateUser,
-    updateUser: apiUpdateUser,
-    deleteUser: apiDeleteUser,
-    refresh: refreshUsers
-  } = useUsers();
-
-  // Use the API hook for reports
-  const {
-    reports: apiReports,
-    isLoading: reportsLoading,
-    isError: reportsError,
-    refreshReports
-  } = useReports();
-
-  // Sync projects from API into local state
-  useEffect(() => {
-    if (apiProjects && apiProjects.length > 0) {
-      const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-cyan-500'];
-      
-      let projectHours: Record<number, number> = {};
-      if (typeof window !== 'undefined') {
-        try {
-          const projectHoursStr = localStorage.getItem('projectTotalHours');
-          if (projectHoursStr) {
-            projectHours = JSON.parse(projectHoursStr);
-          }
-        } catch (e) {}
-      }
-
-      const mapped: Project[] = apiProjects.map((p, index) => {
-        const projId = p.id || index + 1;
-        const totalH = projectHours[projId] || 40;
-
-        let loggedHours = 0;
-        timeEntries.filter(te => te.projectId === projId).forEach(te => {
-          const match = te.duration.match(/(\d+)h (\d+)m/);
-          if (match) {
-            loggedHours += parseInt(match[1]) + parseInt(match[2]) / 60;
-          }
-        });
-
-        const progress = totalH > 0 ? Math.min(100, Math.round((loggedHours / totalH) * 100)) : 0;
-
-        return {
-          id: projId,
-          name: p.name,
-          client: p.description || '',
-          color: colors[index % colors.length],
-          progress,
-          totalHours: totalH,
-          loggedHours: Math.round(loggedHours * 10) / 10,
-          tasks: [],
-          teamMembers: [],
-        };
-      });
-      setProjects(mapped);
-    }
-  }, [apiProjects, timeEntries]);
 
   // Sync users from API into local state
   useEffect(() => {
     if (apiUsers && apiUsers.length > 0) {
-      const mapped: User[] = apiUsers.map((u) => ({
-        id: u.id || 0,
-        name: u.username,
-        email: '',
-        initials: u.username.slice(0, 2).toUpperCase(),
-        role: (u.role?.toLowerCase() || 'employee') as UserRole,
-        team: '',
-      }));
+      const mapped: User[] = apiUsers.map((u) => {
+        let team = 'Zespół Frontend';
+        if (u.username.toLowerCase().includes('admin')) {
+          team = 'Zarząd';
+        } else if (u.username.toLowerCase().includes('mikolaj') || u.username.toLowerCase().includes('backend')) {
+          team = 'Zespół Backend';
+        } else if (u.username.toLowerCase().includes('oliwier') || u.username.toLowerCase().includes('frontend')) {
+          team = 'Zespół Frontend';
+        } else {
+          team = (u.id || 0) % 2 === 0 ? 'Zespół Backend' : 'Zespół Frontend';
+        }
+        return {
+          id: u.id || 0,
+          name: u.username,
+          email: `${u.username.toLowerCase()}@company.com`,
+          initials: u.username.slice(0, 2).toUpperCase(),
+          role: (u.role?.toLowerCase() || 'employee') as UserRole,
+          team: team,
+        };
+      });
       setUsers(mapped);
     }
   }, [apiUsers]);
+
+  const reportTypeFromApi = (t: string): 'summary' | 'detailed' | 'by-project' | 'by-team' => {
+    switch (t) {
+      case 'SUMMARY': return 'summary';
+      case 'DETAILED': return 'detailed';
+      case 'PER_PROJECT': return 'by-project';
+      case 'PER_TEAM': return 'by-team';
+      default: return 'summary';
+    }
+  };
 
   // Sync reports from API into local state
   useEffect(() => {
@@ -346,7 +388,7 @@ export default function TimeTrackingLayout({
       const mapped: Report[] = apiReports.map((r: any, index: number) => ({
         id: index + 1, // API might not return IDs for history, so generate one
         name: `Raport: ${r.type.replace('_', ' ').toLowerCase()}`,
-        type: r.type.toLowerCase(),
+        type: reportTypeFromApi(r.type),
         dateRange: `${r.startDate || ''} - ${r.endDate || ''}`,
         generatedAt: r.generatedAt ? new Date(r.generatedAt).toLocaleString() : '',
         generatedBy: 'System', // API does not return this in the list currently
@@ -623,47 +665,82 @@ export default function TimeTrackingLayout({
   };
 
   // CRUD operations
-  const handleSaveTimeEntry = () => {
+  const handleSaveTimeEntry = async () => {
     const errors = validateTimeEntry(formData);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
 
-    const project = projects.find(p => p.id === Number(formData.project));
-    const duration = calculateDuration(formData.startTime, formData.endTime);
+    setApiLoading(true);
+    setApiError(null);
 
-    if (editingItem) {
-      setTimeEntries(prev => prev.map(entry => 
-        entry.id === editingItem.id 
-          ? { 
-              ...entry, 
-              ...formData, 
-              projectId: Number(formData.project),
-              project: project?.name || '',
-              color: project?.color || 'bg-slate-500',
-              duration 
-            } 
-          : entry
-      ));
-    } else {
-      const nextId = timeEntries.length > 0 ? Math.max(...timeEntries.map(e => e.id)) + 1 : 1;
-      const newEntry: TimeEntry = {
-        id: nextId,
-        date: formData.date,
-        task: formData.task,
-        taskId: Number(formData.taskId) || 0,
-        project: project?.name || '',
-        projectId: Number(formData.project),
-        duration,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        color: project?.color || 'bg-slate-500',
+    try {
+      let taskId = Number(formData.taskId);
+      if (!taskId && formData.task) {
+        const existingTask = apiTasks.find(t => t.projectId === Number(formData.project) && t.name.toLowerCase() === formData.task.toLowerCase());
+        if (existingTask) {
+          taskId = existingTask.id || 0;
+        } else {
+          const taskResult = await createTask({
+            projectId: Number(formData.project),
+            name: formData.task,
+            status: 'TODO',
+            description: 'Utworzone automatycznie podczas logowania czasu',
+            assignedUserIds: [currentUser.id]
+          });
+          
+          if (taskResult.error) {
+            setApiError(taskResult.error.message || 'Nie udało się utworzyć zadania dla wpisu czasu.');
+            setApiLoading(false);
+            return;
+          }
+          
+          if (taskResult.data && taskResult.data.id) {
+            taskId = taskResult.data.id;
+            await refreshTasks();
+          } else {
+            setApiError('Nie udało się pobrać ID nowego zadania.');
+            setApiLoading(false);
+            return;
+          }
+        }
+      }
+
+      const startTime = `${formData.date}T${formData.startTime}:00`;
+      const endTime = formData.endTime ? `${formData.date}T${formData.endTime}:00` : undefined;
+
+      const entryData: TimeEntryDTO = {
         userId: currentUser.id,
+        taskId: taskId,
+        startTime,
+        endTime,
+        description: formData.description || ''
       };
-      setTimeEntries(prev => [...prev, newEntry]);
+
+      if (editingItem) {
+        const result = await apiUpdateTimeEntry(editingItem.id, entryData);
+        if (result.error) {
+          setApiError(result.error.message || 'Błąd podczas aktualizacji wpisu czasu.');
+          setApiLoading(false);
+          return;
+        }
+      } else {
+        const result = await apiCreateTimeEntry(entryData);
+        if (result.error) {
+          setApiError(result.error.message || 'Błąd podczas tworzenia wpisu czasu.');
+          setApiLoading(false);
+          return;
+        }
+      }
+
+      await refreshTimeEntries();
+      setApiLoading(false);
+      closeModal();
+    } catch (err) {
+      setApiError('Wystąpił nieoczekiwany błąd podczas zapisywania.');
+      setApiLoading(false);
     }
-    closeModal();
   };
 
   const handleSaveProject = async () => {
@@ -835,106 +912,102 @@ export default function TimeTrackingLayout({
     setApiLoading(true);
     setApiError(null);
 
+    const parseDurationToHours = (durationStr: string): number => {
+      if (!durationStr) return 0;
+      const match = durationStr.match(/(\d+)h (\d+)m/);
+      if (match) {
+        return parseInt(match[1], 10) + parseInt(match[2], 10) / 60;
+      }
+      return 0;
+    };
+
     try {
       const type = formData.type || 'summary';
       
-      // We must generate reports locally because the backend has no TimeEntries
-      const start = new Date(formData.dateFrom);
-      const end = new Date(formData.dateTo);
-      start.setHours(0,0,0,0);
-      end.setHours(23,59,59,999);
-
+      // Filter entries locally based on form parameters
+      const isDetailed = type === 'detailed';
       const relevantEntries = timeEntries.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entryDate >= start && entryDate <= end;
+        const matchesDate = entry.date >= formData.dateFrom && entry.date <= formData.dateTo;
+        const matchesProject = !isDetailed || !formData.includeProjects || formData.includeProjects === 'all' || entry.projectId === Number(formData.includeProjects);
+        const matchesUser = !isDetailed || !formData.includeUsers || formData.includeUsers === 'all' || entry.userId === Number(formData.includeUsers);
+        return matchesDate && matchesProject && matchesUser;
       });
-
-      const parseDuration = (dur: string) => {
-        const match = dur.match(/(\d+)h (\d+)m/);
-        if (!match) return 0;
-        return parseInt(match[1]) + parseInt(match[2]) / 60;
-      };
 
       let generatedData: any[] = [];
 
       if (type === 'summary') {
-        const userMap = new Map<number, { username: string; totalHours: number; totalEntries: number }>();
+        const summaryMap = new Map<number, { username: string; totalHours: number; totalEntries: number }>();
         relevantEntries.forEach(entry => {
-          const user = users.find(u => u.id === entry.userId);
-          const username = user ? user.name : `User ${entry.userId}`;
-          const dur = parseDuration(entry.duration);
+          const uId = entry.userId;
+          const user = users.find(u => u.id === uId);
+          const name = user ? user.name : `Uzytkownik ${uId}`;
+          const hours = parseDurationToHours(entry.duration);
           
-          if (!userMap.has(entry.userId)) {
-            userMap.set(entry.userId, { username, totalHours: 0, totalEntries: 0 });
+          if (!summaryMap.has(uId)) {
+            summaryMap.set(uId, { username: name, totalHours: 0, totalEntries: 0 });
           }
-          const stats = userMap.get(entry.userId)!;
-          stats.totalHours += dur;
+          const stats = summaryMap.get(uId)!;
+          stats.totalHours += hours;
           stats.totalEntries += 1;
         });
-        generatedData = Array.from(userMap.values()).map(d => ({
-          ...d,
-          totalHours: Math.round(d.totalHours * 100) / 100
+        generatedData = Array.from(summaryMap.values()).map(item => ({
+          username: item.username,
+          totalHours: Math.round(item.totalHours * 100) / 100,
+          totalEntries: item.totalEntries
         }));
       } else if (type === 'detailed') {
         generatedData = relevantEntries.map(entry => {
           const user = users.find(u => u.id === entry.userId);
-          const project = projects.find(p => p.id === entry.projectId);
-          const task = apiTasks.find(t => t.id === entry.taskId);
-          
           return {
             date: entry.date,
-            username: user ? user.name : `User ${entry.userId}`,
-            projectName: project ? project.name : `Project ${entry.projectId}`,
-            taskName: task ? task.name : `Task ${entry.taskId}`,
-            duration: entry.duration
+            username: user ? user.name : `Uzytkownik ${entry.userId}`,
+            projectName: entry.project,
+            taskName: entry.task,
+            duration: entry.duration,
+            description: entry.description || ''
           };
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        });
       } else if (type === 'by-project') {
         const projectMap = new Map<number, { projectName: string; totalHours: number; employeeSet: Set<number> }>();
         relevantEntries.forEach(entry => {
-          const project = projects.find(p => p.id === entry.projectId);
-          const projectName = project ? project.name : `Project ${entry.projectId}`;
-          const dur = parseDuration(entry.duration);
-          
-          if (!projectMap.has(entry.projectId)) {
-            projectMap.set(entry.projectId, { projectName, totalHours: 0, employeeSet: new Set() });
+          const pId = entry.projectId;
+          const hours = parseDurationToHours(entry.duration);
+          if (!projectMap.has(pId)) {
+            projectMap.set(pId, { projectName: entry.project, totalHours: 0, employeeSet: new Set() });
           }
-          const stats = projectMap.get(entry.projectId)!;
-          stats.totalHours += dur;
+          const stats = projectMap.get(pId)!;
+          stats.totalHours += hours;
           stats.employeeSet.add(entry.userId);
         });
-        generatedData = Array.from(projectMap.values()).map(d => ({
-          projectName: d.projectName,
-          totalHours: Math.round(d.totalHours * 100) / 100,
-          employeeCount: d.employeeSet.size
+        generatedData = Array.from(projectMap.values()).map(item => ({
+          projectName: item.projectName,
+          totalHours: Math.round(item.totalHours * 100) / 100,
+          employeeCount: item.employeeSet.size
         }));
       } else if (type === 'by-team') {
-        // Teams don't strictly map to entries directly, so we map users to teams
         const teamMap = new Map<string, { teamName: string; totalHours: number; memberSet: Set<number> }>();
         relevantEntries.forEach(entry => {
           const user = users.find(u => u.id === entry.userId);
           const teamName = user?.team || 'Inne';
-          const dur = parseDuration(entry.duration);
+          const hours = parseDurationToHours(entry.duration);
           
           if (!teamMap.has(teamName)) {
             teamMap.set(teamName, { teamName, totalHours: 0, memberSet: new Set() });
           }
           const stats = teamMap.get(teamName)!;
-          stats.totalHours += dur;
+          stats.totalHours += hours;
           stats.memberSet.add(entry.userId);
         });
-        generatedData = Array.from(teamMap.values()).map(d => ({
-          teamName: d.teamName,
-          totalHours: Math.round(d.totalHours * 100) / 100,
-          memberCount: d.memberSet.size
+        generatedData = Array.from(teamMap.values()).map(item => ({
+          teamName: item.teamName,
+          totalHours: Math.round(item.totalHours * 100) / 100,
+          memberCount: item.memberSet.size
         }));
       }
 
-      setApiLoading(false);
-      
       const newReport = {
-        id: Date.now(), // Temporary ID for viewing immediately
-        name: `Raport: ${type.replace('_', ' ').toLowerCase()}`,
+        id: Date.now(),
+        name: `Raport: ${type.replace('-', ' ').toLowerCase()}`,
         type: type,
         dateRange: `${formData.dateFrom} - ${formData.dateTo}`,
         generatedAt: new Date().toLocaleString(),
@@ -942,11 +1015,10 @@ export default function TimeTrackingLayout({
         data: generatedData,
       };
 
-      // We add it to the visible reports array locally
       setReports(prev => [newReport, ...prev]);
-
       setActiveModal('view-report');
       setEditingItem(newReport);
+      setApiLoading(false);
 
     } catch (err) {
       setApiError('Wystapil nieoczekiwany blad przy generowaniu raportu');
@@ -963,8 +1035,12 @@ export default function TimeTrackingLayout({
     try {
       switch (deleteTarget.type) {
         case 'time-entry':
-          // TODO: Add API call for time entries when endpoint is available
-          setTimeEntries(prev => prev.filter(e => e.id !== deleteTarget.id));
+          const entryDelResult = await apiDeleteTimeEntry(deleteTarget.id);
+          if (entryDelResult.error) {
+            setApiError(entryDelResult.error.message || 'Nie udało się usunąć wpisu czasu.');
+            setApiLoading(false);
+            return;
+          }
           break;
         case 'project':
           // DELETE project via API
@@ -980,7 +1056,11 @@ export default function TimeTrackingLayout({
             return;
           }
           
-          setProjects(prev => prev.filter(p => p.id !== deleteTarget.id));
+          setLocalProjectMembers(prev => {
+            const next = { ...prev };
+            delete next[deleteTarget.id];
+            return next;
+          });
           if (selectedProject === deleteTarget.id) setSelectedProject(null);
           break;
         case 'task':
@@ -1020,12 +1100,15 @@ export default function TimeTrackingLayout({
 
   const handleAssignEmployee = () => {
     if (!formData.userId || !selectedProject) return;
-
-    setProjects(prev => prev.map(project => {
-      if (project.id !== selectedProject) return project;
-      if (project.teamMembers.includes(Number(formData.userId))) return project;
-      return { ...project, teamMembers: [...project.teamMembers, Number(formData.userId)] };
-    }));
+    const userId = Number(formData.userId);
+    setLocalProjectMembers(prev => {
+      const current = prev[selectedProject] || [];
+      if (current.includes(userId)) return prev;
+      return {
+        ...prev,
+        [selectedProject]: [...current, userId]
+      };
+    });
     closeModal();
   };
 
@@ -1098,7 +1181,7 @@ export default function TimeTrackingLayout({
             currentMonth={currentMonth}
             setCurrentMonth={setCurrentMonth}
             getDaysInMonth={getDaysInMonth}
-            openModal={openModal}
+            openModal={openModal as any}
             formatMonth={formatMonth}
             filterProject={filterProject}
             setFilterProject={setFilterProject}
@@ -1121,7 +1204,7 @@ export default function TimeTrackingLayout({
             setSelectedProject={setSelectedProject}
             projectsLoading={projectsLoading}
             refreshProjects={refreshProjects}
-            openModal={openModal}
+            openModal={openModal as any}
             confirmDelete={confirmDelete}
             apiTasks={apiTasks}
             tasksLoading={tasksLoading}
@@ -1139,7 +1222,7 @@ export default function TimeTrackingLayout({
           <ReportsView
             currentUser={currentUser}
             reports={reports}
-            openModal={openModal}
+            openModal={openModal as any}
             setEditingItem={setEditingItem}
             setActiveModal={setActiveModal}
             confirmDelete={confirmDelete}
@@ -1152,7 +1235,7 @@ export default function TimeTrackingLayout({
             users={usersWithActiveTimer}
             usersLoading={usersLoading}
             refreshUsers={refreshUsers}
-            openModal={openModal}
+            openModal={openModal as any}
             confirmDelete={confirmDelete}
           />
         );
@@ -1163,7 +1246,7 @@ export default function TimeTrackingLayout({
             users={usersWithActiveTimer}
             timeEntries={timeEntries}
             visibleProjects={visibleProjects}
-            openModal={openModal}
+            openModal={openModal as any}
             formatTimer={formatTimer}
             showFilters={showFilters}
             setShowFilters={setShowFilters}
@@ -1406,14 +1489,7 @@ export default function TimeTrackingLayout({
         
         {/* TOPBAR */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-          <div className="relative w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Szukaj zadan, projektow..." 
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-            />
-          </div>
+          <div className="flex-1"></div>
 
           <div className="flex items-center gap-6">
             {/* API Status Indicator */}
@@ -1560,40 +1636,7 @@ export default function TimeTrackingLayout({
                 </button>
               </div>
             )}
-            
-            {/* Notifications */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <Bell size={20} />
-                {notifications.some(n => !n.read) && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
-                )}
-              </button>
 
-              {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-slate-200">
-                    <h3 className="font-semibold text-slate-900">Powiadomienia</h3>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.map(notification => (
-                      <div 
-                        key={notification.id}
-                        className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
-                          !notification.read ? 'bg-indigo-50/50' : ''
-                        }`}
-                      >
-                        <p className="text-sm text-slate-900">{notification.message}</p>
-                        <p className="text-xs text-slate-500 mt-1">{notification.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* User menu */}
             <div className="relative">
@@ -1641,11 +1684,10 @@ export default function TimeTrackingLayout({
       {/* Modal */}
       {renderModal()}
 
-      {/* Click outside handlers */}
-      {(showNotifications || showUserMenu || showApiStatus) && (
+      {(showUserMenu || showApiStatus) && (
         <div 
           className="fixed inset-0 z-40" 
-          onClick={() => { setShowNotifications(false); setShowUserMenu(false); setShowApiStatus(false); }}
+          onClick={() => { setShowUserMenu(false); setShowApiStatus(false); }}
         />
       )}
     </div>

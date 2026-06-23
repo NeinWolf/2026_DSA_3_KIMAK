@@ -28,7 +28,7 @@ describe('Root Page Entry Component', () => {
 
     it('bypasses login and renders the main layout if a valid user session is stored', async () => {
         // Inject fake credentials into the virtual browser
-        localStorage.setItem('token', 'stored-token');
+        localStorage.setItem('token', 'header.eyJzdWIiOiJkZXZlbG9wZXIiLCJleHAiOjE4MDAwMDAwMDB9.signature');
         localStorage.setItem('user', JSON.stringify({ id: 1, name: 'Developer', role: 'admin' }));
 
         render(<Page />);

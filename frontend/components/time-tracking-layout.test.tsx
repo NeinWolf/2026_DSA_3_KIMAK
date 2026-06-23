@@ -12,6 +12,17 @@ vi.mock('@/hooks/use-tasks', () => ({
 vi.mock('@/hooks/use-users', () => ({
     useUsers: () => ({ users: [], isLoading: false, error: null, refresh: vi.fn() })
 }));
+vi.mock('@/hooks/use-time-entries', () => ({
+    useTimeEntries: () => ({
+        timeEntries: [],
+        isLoading: false,
+        error: null,
+        createTimeEntry: vi.fn().mockResolvedValue({ success: true }),
+        updateTimeEntry: vi.fn().mockResolvedValue({ success: true }),
+        deleteTimeEntry: vi.fn().mockResolvedValue({ success: true }),
+        refresh: vi.fn()
+    })
+}));
 
 describe('TimeTrackingLayout Component', () => {
     const mockUser = {

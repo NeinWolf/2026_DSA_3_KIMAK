@@ -359,6 +359,58 @@ export async function generateReport<T>(
 }
 
 // ============================================
+// TIME ENTRIES API
+// ============================================
+
+export interface TimeEntryDTO {
+  id?: number;
+  userId: number;
+  username?: string;
+  taskId: number;
+  taskName?: string;
+  projectId?: number;
+  projectName?: string;
+  startTime: string;
+  endTime?: string;
+  isActive?: boolean;
+  durationMinutes?: number;
+  description?: string;
+}
+
+export async function getTimeEntries(): Promise<{ data?: TimeEntryDTO[]; error?: ApiError }> {
+  return apiFetch<TimeEntryDTO[]>('/time-entries');
+}
+
+export async function getTimeEntriesByUser(userId: number): Promise<{ data?: TimeEntryDTO[]; error?: ApiError }> {
+  return apiFetch<TimeEntryDTO[]>(`/time-entries/user/${userId}`);
+}
+
+export async function createTimeEntry(
+  entry: TimeEntryDTO
+): Promise<{ data?: TimeEntryDTO; error?: ApiError }> {
+  return apiFetch<TimeEntryDTO>('/time-entries', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function updateTimeEntry(
+  id: number,
+  entry: TimeEntryDTO
+): Promise<{ data?: TimeEntryDTO; error?: ApiError }> {
+  return apiFetch<TimeEntryDTO>(`/time-entries/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteTimeEntry(id: number): Promise<{ data?: void; error?: ApiError }> {
+  return apiFetch<void>(`/time-entries/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================
 // HELPER HOOKS (for use with SWR)
 // ============================================
 
