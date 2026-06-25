@@ -14,6 +14,8 @@ To access the system, navigate to the web application URL:
 
 *Note: Your account must be created beforehand by an Administrator.*
 
+![Login Screen](screenshots/1_Login.png)
+
 ---
 
 ## 2. Main Interface Layout
@@ -22,6 +24,12 @@ Once logged in, you will see a two-column layout:
 - **Sidebar (Navigation)**: Displays the logo, active user details (role and team), and navigation buttons to switch views.
 - **Main View Area**: Shows the content of the selected panel (Dashboard, Calendar, Projects, Reports, or Team).
 - **Topbar**: Shows current status, active timer/stopwatch controls, and a logout button.
+
+#### Employee Interface:
+![Employee Dashboard](screenshots/4_Dashboard.png)
+
+#### Administrator Interface:
+![Admin Dashboard](screenshots/8_AdminDashboard.png)
 
 ---
 
@@ -46,11 +54,15 @@ If you forgot to start the stopwatch, you can add your time block manually:
 4. Set the **Date**, **Start Time**, and **End Time**.
 5. Type a description and click **Dodaj wpis** (Add entry).
 
+![Logging Time Manually](screenshots/5_LogTime.png)
+
 ### 3.3. Reviewing and Editing Your Calendar
 In the **Mój Czas** view:
 - You will see a monthly calendar with color-coded blocks representing your logged entries.
 - Click any entry block to open the edit modal. You can modify the hours, descriptions, or click **Usuń** (Delete) to remove the entry.
 - The stats row above the calendar displays your hours logged Today, this Week, and this Month, alongside your weekly progress towards the 40-hour goal.
+
+![Editing Time Entries](screenshots/7_EditEntry.png)
 
 ---
 
@@ -61,7 +73,13 @@ If you are logged in as an Administrator, you will have additional views in the 
 ### 4.1. Project & Task Management
 Navigate to **Projekty i Zadania**:
 - **Create a Project**: Click **Nowy Projekt**, type the project name and client/description, choose a highlight color, and click save.
+
+  ![Creating a Project](screenshots/9_CreateProject.png)
+
 - **Create a Task**: Click **Dodaj zadanie** inside any project card. Enter the task name and description, select status (`TODO`, `IN_PROGRESS`, `DONE`), and save.
+
+  ![Creating a Task](screenshots/10_AddTask.png)
+
 - **Assign Employees**: Click **Przypisz pracownika** (Assign employee) on a task, select an employee from the dropdown list, and save.
 
 ### 4.2. Reporting and PDF Export
@@ -74,7 +92,12 @@ Navigate to **Raporty**:
    - **Według zespołów** (By Teams): Total hours logged by backend/frontend teams.
 3. Set the date range (From / To).
 4. Click **Generuj** to view the report in a table.
+
+   ![Generating Reports](screenshots/12_GenerateReport.png)
+
 5. Click **Pobierz PDF** (Download PDF) to download a clean printable report page.
+
+   ![Downloading PDF Report](screenshots/13_DownloadReport.png)
 
 ### 4.3. Team Monitoring
 Navigate to **Zarządzanie Zespołem** (Team Management):

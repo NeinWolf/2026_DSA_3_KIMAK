@@ -25,6 +25,8 @@ This document describes the functional use cases implemented in the Time Trackin
   4. Frontend stores token and user in `localStorage`.
   5. UI routes to the appropriate view (`DashboardView`).
 
+  ![UC-01: User Login](screenshots/1_Login.png)
+
 ### UC-02: Session Restore
 - **Primary Actor**: Employee, Administrator
 - **Preconditions**: A token is stored in the browser's `localStorage`.
@@ -57,6 +59,8 @@ This document describes the functional use cases implemented in the Time Trackin
      - Progress bar showing current weekly hours vs. the weekly goal (40h).
   3. System displays a chart/list of recent tasks worked on.
 
+  ![UC-04: View Dashboard (Employee)](screenshots/4_Dashboard.png)
+
 ### UC-05: Log Time Manually
 - **Primary Actor**: Employee
 - **Preconditions**: Employee is assigned to a project/task.
@@ -70,6 +74,8 @@ This document describes the functional use cases implemented in the Time Trackin
   7. System validates that the end time is after the start time, and that the new entry does not overlap with existing entries.
   8. Employee submits, and the frontend sends a POST request to `/api/time-entries`.
   9. Calendar updates with the new time block.
+
+  ![UC-05: Log Time Manually](screenshots/5_LogTime.png)
 
 ### UC-06: Use Stopwatch (Real-time Timer)
 - **Primary Actor**: Employee
@@ -89,6 +95,8 @@ This document describes the functional use cases implemented in the Time Trackin
   3. Employee modifies fields (project, task, times, description) and clicks save (PUT request to `/api/time-entries/{id}`), OR clicks "Usuń" (Delete) (DELETE request to `/api/time-entries/{id}`).
   4. Calendar refetches and updates.
 
+  ![UC-07: Edit / Delete Personal Time Entry](screenshots/7_EditEntry.png)
+
 ---
 
 ## 4. Administrator Use Cases
@@ -103,6 +111,8 @@ This document describes the functional use cases implemented in the Time Trackin
      - Total employees registered.
      - Quick list of active stopwatches running in real-time.
 
+  ![UC-08: View Dashboard (Admin)](screenshots/8_AdminDashboard.png)
+
 ### UC-09: Create / Edit / Delete Projects
 - **Primary Actor**: Administrator
 - **Main Flow**:
@@ -112,6 +122,8 @@ This document describes the functional use cases implemented in the Time Trackin
   4. Admin saves the project (POST request to `/api/projects`).
   5. Admin can also select an existing project to edit (PUT) or delete it (DELETE).
 
+  ![UC-09: Create / Edit / Delete Projects](screenshots/9_CreateProject.png)
+
 ### UC-10: Manage Project Tasks
 - **Primary Actor**: Administrator
 - **Main Flow**:
@@ -120,6 +132,8 @@ This document describes the functional use cases implemented in the Time Trackin
   3. Admin enters task name, description, status (`TODO`, `IN_PROGRESS`, `DONE`).
   4. Admin saves the task (POST request to `/api/tasks`).
   5. Admin can click "Edytuj" (Edit) or "Usuń" (Delete) on tasks.
+
+  ![UC-10: Manage Project Tasks](screenshots/10_AddTask.png)
 
 ### UC-11: Assign Employee to Task
 - **Primary Actor**: Administrator
@@ -139,6 +153,8 @@ This document describes the functional use cases implemented in the Time Trackin
   4. Admin submits, and the frontend queries `/api/reports/{type}` with query parameters.
   5. Frontend displays report data in a dynamic paginated table.
 
+  ![UC-12: Generate Reports](screenshots/12_GenerateReport.png)
+
 ### UC-13: Export Report to PDF
 - **Primary Actor**: Administrator
 - **Preconditions**: Report data has been generated and is visible in the viewer modal.
@@ -147,3 +163,5 @@ This document describes the functional use cases implemented in the Time Trackin
   2. System triggers the client-side PDF helper.
   3. System parses the table columns and data rows into a formatted report PDF (attaching title, parameters, headers, and footer pages).
   4. The PDF file is downloaded locally.
+
+  ![UC-13: Export Report to PDF](screenshots/13_DownloadReport.png)
