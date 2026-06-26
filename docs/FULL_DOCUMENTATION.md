@@ -1,4 +1,4 @@
-# Time Tracking System — Full Backend Documentation
+# Time Tracking System — Full Documentation
 
 
 ---
